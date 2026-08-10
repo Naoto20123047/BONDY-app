@@ -1,0 +1,111 @@
+.create-post-content {
+  padding: 36px 44px;
+  max-width: 620px;
+}
+
+.create-post-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.create-post-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 24px;
+}
+
+.create-post-field {
+  margin-bottom: 20px;
+}
+
+.create-post-label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+.create-post-categories {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.create-post-cat {
+  padding: 8px 16px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.create-post-cat.active {
+  background: var(--color-accent-bg);
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.create-post-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.create-post-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.create-post-input:focus,
+.create-post-textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.create-post-actions {
+  margin-top: 24px;
+}
+
+.create-post-submit {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.create-post-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .create-post-content {
+    padding: 20px;
+  }
+}

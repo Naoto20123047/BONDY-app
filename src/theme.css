@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Stick&display=swap');
+
+:root {
+  /* カラー(ディープグリーン/エメラルド系) */
+  --color-accent: #0F7B6C;
+  --color-accent-dark: #0A5A4E;
+  --color-accent-bg: #E6F4F1;
+  --color-accent-text: #0A4A40;
+
+  --color-page: #F6F7F5;
+  --color-surface: #FFFFFF;
+  --color-surface-sub: #EEF1EE;
+
+  --color-text: #1A211E;
+  --color-text-secondary: #4C5551;
+  --color-text-muted: #9CA6A1;
+
+  --color-border: #E2E7E3;
+  --color-danger: #C0392B;
+  --color-danger-border: #E8B4AE;
+
+  /* 角丸 */
+  --radius: 10px;
+  --radius-card: 16px;
+  --radius-pill: 999px;
+
+  /* 影 */
+  --shadow-sm: 0 1px 2px rgba(31, 29, 26, 0.04), 0 1px 3px rgba(31, 29, 26, 0.06);
+  --shadow-md: 0 2px 4px rgba(31, 29, 26, 0.04), 0 4px 12px rgba(31, 29, 26, 0.08);
+  --shadow-lg: 0 4px 8px rgba(31, 29, 26, 0.05), 0 12px 28px rgba(31, 29, 26, 0.10);
+
+  /* トランジション */
+  --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* レイアウト */
+  --sidebar-width: 248px;
+  --bottom-nav-height: 68px;
+
+  /* フォント */
+  --font-sans: 'Inter', 'Noto Sans JP', system-ui, sans-serif;
+  --font-logo: 'Stick', 'Noto Sans JP', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: var(--font-sans);
+  transition: background var(--transition), border-color var(--transition),
+    box-shadow var(--transition), transform var(--transition), opacity var(--transition);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+input, select, textarea {
+  font-family: var(--font-sans);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(15, 123, 108, 0.14);
+}

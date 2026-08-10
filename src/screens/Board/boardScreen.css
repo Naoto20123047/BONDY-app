@@ -1,0 +1,221 @@
+.board-content {
+  padding: 40px 72px 64px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.board-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.board-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.board-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.board-filter {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.board-filter-btn {
+  padding: 7px 16px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.board-filter-btn.active {
+  background: var(--color-accent-bg);
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+/* PC:カード1枚を横長に(幅に応じて列数が変わる) */
+.board-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.board-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px 26px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.board-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.board-card.resolved {
+  opacity: 0.6;
+}
+
+.board-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.board-cat {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.cat-recruit {
+  background: #E9F3EF;
+  color: #0F7B6C;
+}
+
+.cat-equipment {
+  background: #EDF0F7;
+  color: #3A5199;
+}
+
+.cat-notice {
+  background: #FBF0E9;
+  color: #B5651D;
+}
+
+.cat-other {
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
+}
+
+.board-resolved-badge {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+}
+
+.board-card-title {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.board-card-body {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.board-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.board-card-author,
+.board-card-comments {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.board-card-date {
+  margin-left: auto;
+}
+
+.board-empty {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ===== スマホ:従来のデザイン ===== */
+@media (max-width: 768px) {
+  .board-content {
+    padding: 20px;
+    max-width: 680px;
+  }
+
+  .board-header {
+    margin-bottom: 20px;
+  }
+
+  .board-create {
+    padding: 8px 16px;
+  }
+
+  .board-filter {
+    margin-bottom: 20px;
+  }
+
+  .board-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .board-card {
+    gap: 8px;
+    padding: 16px 18px;
+  }
+
+  .board-card:hover {
+    box-shadow: none;
+  }
+
+  .board-card-title {
+    font-size: 16px;
+  }
+
+  .board-card-body {
+    line-height: 1.5;
+  }
+
+  .board-card-meta {
+    gap: 14px;
+    margin-top: 2px;
+  }
+}

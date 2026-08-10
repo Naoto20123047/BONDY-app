@@ -1,0 +1,126 @@
+.roster-content {
+  padding: 36px 44px;
+}
+
+.roster-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.roster-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.roster-count {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.roster-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.roster-search {
+  flex: 1;
+  max-width: 280px;
+  height: 40px;
+  padding: 0 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.roster-select {
+  width: 130px;
+  height: 40px;
+  padding: 0 10px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 14px;
+}
+
+.roster-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 8px;
+  border: none;
+  border-bottom: 0.5px solid var(--color-border);
+  background: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.roster-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-surface-sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.roster-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.roster-name {
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.roster-meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.roster-badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--radius);
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.roster-chevron {
+  font-size: 18px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+  .roster-content {
+    padding: 20px;
+  }
+
+  .roster-search {
+    max-width: none;
+  }
+}
+.roster-nickname {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-left: 2px;
+}

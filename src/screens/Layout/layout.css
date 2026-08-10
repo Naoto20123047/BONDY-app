@@ -1,0 +1,326 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  background: var(--color-page);
+}
+
+.layout-sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 28px;
+}
+
+.layout-logo-img {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
+.layout-logo-text {
+  font-family: var(--font-logo);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+}
+
+.layout-nav {
+  flex: 1;
+}
+
+.layout-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.layout-nav-item i {
+  font-size: 20px;
+}
+
+.layout-nav-item:hover {
+  background: var(--color-surface-sub);
+}
+
+.layout-nav-item.active {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+  font-weight: 500;
+}
+
+.layout-logout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  margin-top: 8px;
+}
+
+.layout-logout i {
+  font-size: 20px;
+}
+
+.layout-logout:hover {
+  background: var(--color-surface-sub);
+  color: var(--color-danger);
+}
+
+.layout-mobile-header {
+  display: none;
+}
+
+.layout-main {
+  flex: 1;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.layout-main::before {
+  content: "";
+  position: fixed;
+  top: 50%;
+  left: calc(50% + var(--sidebar-width) / 2);
+  transform: translate(-50%, -50%);
+  width: 480px;
+  height: 480px;
+  background-image: url("/logo.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.layout-main > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* PC用フローティング通知 */
+.layout-float-notif {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 150;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.layout-bottom-nav {
+  display: none;
+}
+
+.layout-sheet-overlay {
+  display: none;
+}
+
+.layout-sheet {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    padding-top: 64px;
+    padding-bottom: var(--bottom-nav-height);
+  }
+
+  .layout-sidebar {
+    display: none;
+  }
+
+  /* スマホではフローティングを隠す(ヘッダーのベルを使う) */
+  .layout-float-notif {
+    display: none;
+  }
+
+  .layout-mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    padding: 0 18px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    z-index: 100;
+  }
+
+  .layout-mobile-logo {
+    height: 44px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .layout-mobile-title {
+    font-family: var(--font-logo);
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: 0.01em;
+  }
+
+  .layout-mobile-spacer {
+    flex: 1;
+  }
+
+  .layout-main::before {
+    left: 50%;
+    width: 320px;
+    height: 320px;
+  }
+
+  .layout-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--color-border);
+    padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+    z-index: 100;
+  }
+
+  .layout-bottom-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 8px 0;
+    border-radius: var(--radius);
+  }
+
+  .layout-bottom-item i {
+    font-size: 24px;
+  }
+
+  .layout-bottom-item span {
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .layout-bottom-item.active {
+    color: var(--color-accent);
+  }
+
+  .layout-sheet-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 33, 30, 0.4);
+    z-index: 200;
+    animation: sheet-fade 0.2s ease;
+  }
+
+  .layout-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--color-surface);
+    border-radius: 20px 20px 0 0;
+    padding: 12px 16px calc(20px + env(safe-area-inset-bottom));
+    z-index: 201;
+    box-shadow: var(--shadow-lg);
+    animation: sheet-up 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .layout-sheet-handle {
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-border);
+    margin: 0 auto 12px;
+  }
+
+  .layout-sheet-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 12px;
+    border: none;
+    background: none;
+    color: var(--color-text);
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    text-align: left;
+  }
+
+  .layout-sheet-item i {
+    font-size: 22px;
+    color: var(--color-text-secondary);
+  }
+
+  .layout-sheet-item.active {
+    background: var(--color-accent-bg);
+    color: var(--color-accent-text);
+  }
+
+  .layout-sheet-item.active i {
+    color: var(--color-accent-text);
+  }
+
+  .layout-sheet-item.logout {
+    color: var(--color-danger);
+  }
+
+  .layout-sheet-item.logout i {
+    color: var(--color-danger);
+  }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

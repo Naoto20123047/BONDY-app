@@ -1,0 +1,146 @@
+.eqr-content {
+  padding: 36px 44px;
+  max-width: 600px;
+}
+
+.eqr-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.eqr-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 24px;
+}
+
+.eqr-section {
+  margin-bottom: 28px;
+}
+
+.eqr-section-label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin: 0 0 12px;
+}
+
+.eqr-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.eqr-card.static {
+  box-shadow: none;
+}
+
+.eqr-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.eqr-equipment {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.eqr-qty {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.eqr-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.eqr-meta i {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.eqr-overdue {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.eqr-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.eqr-approve {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.eqr-reject {
+  padding: 8px 14px;
+  border: 0.5px solid var(--color-danger-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.eqr-badge-overdue {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  background: #F5E4E4;
+  color: var(--color-danger);
+  flex-shrink: 0;
+}
+
+.eqr-empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+  .eqr-content {
+    padding: 20px;
+  }
+
+  .eqr-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .eqr-actions {
+    width: 100%;
+  }
+
+  .eqr-approve,
+  .eqr-reject {
+    flex: 1;
+  }
+}

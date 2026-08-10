@@ -1,0 +1,143 @@
+.create-band-content {
+  padding: 36px 44px;
+  max-width: 520px;
+}
+
+.create-band-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.create-band-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 28px;
+}
+
+.create-band-field {
+  margin-bottom: 24px;
+}
+
+.create-band-label {
+  display: block;
+  font-size: 14px;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.create-band-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.create-band-members {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.create-band-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.create-band-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--color-surface-sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.create-band-member-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.create-band-you {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius);
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.create-band-part {
+  width: 100px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.create-band-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.create-band-add-select {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 0.5px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: none;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.create-band-save {
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.create-band-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .create-band-content {
+    padding: 20px;
+  }
+}

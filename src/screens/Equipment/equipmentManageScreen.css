@@ -1,0 +1,217 @@
+.eqm-content {
+  padding: 36px 44px;
+  max-width: 640px;
+}
+
+.eqm-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.eqm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.eqm-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.eqm-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.eqm-form {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.eqm-form-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0 0 16px;
+}
+
+.eqm-field {
+  flex: 1;
+  margin-bottom: 14px;
+}
+
+.eqm-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.eqm-label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.eqm-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.eqm-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-text);
+  margin: 6px 0 16px;
+  cursor: pointer;
+}
+
+.eqm-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.eqm-cancel {
+  padding: 8px 16px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.eqm-save {
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.eqm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eqm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.eqm-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eqm-item-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.eqm-item-meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.eqm-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eqm-lendable {
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  cursor: pointer;
+  border: 0.5px solid transparent;
+}
+
+.eqm-lendable.on {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.eqm-lendable.off {
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+}
+
+.eqm-icon-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.eqm-icon-btn.danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+@media (max-width: 768px) {
+  .eqm-content {
+    padding: 20px;
+  }
+
+  .eqm-form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .eqm-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}

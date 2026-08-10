@@ -1,0 +1,120 @@
+.role-approvals-content {
+  padding: 36px 44px;
+  max-width: 560px;
+}
+
+.role-approvals-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.role-approvals-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 24px;
+}
+
+.role-approvals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.role-approval-card {
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+}
+
+.role-approval-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.role-approval-type {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-accent-text);
+  background: var(--color-accent-bg);
+  padding: 4px 12px;
+  border-radius: var(--radius);
+}
+
+.role-approval-progress {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.role-approval-target {
+  font-size: 15px;
+  color: var(--color-text);
+  margin: 0 0 4px;
+}
+
+.role-approval-proposer {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 16px;
+}
+
+.role-approval-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.role-approval-approve {
+  padding: 9px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.role-approval-reject {
+  padding: 9px 16px;
+  border: 0.5px solid var(--color-danger-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.role-approval-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--color-accent);
+}
+
+.role-approval-note {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.role-approvals-empty {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+  .role-approvals-content {
+    padding: 20px;
+  }
+}

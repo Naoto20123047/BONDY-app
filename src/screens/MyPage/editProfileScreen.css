@@ -1,0 +1,83 @@
+.edit-content {
+  padding: 36px 44px;
+  max-width: 480px;
+}
+
+.edit-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.edit-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 28px;
+}
+
+.edit-field {
+  margin-bottom: 18px;
+}
+
+.edit-label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.edit-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 14px;
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.edit-input:disabled {
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.edit-input.editable {
+  border-color: var(--color-accent);
+}
+
+.edit-actions {
+  margin-top: 28px;
+}
+
+.edit-save {
+  width: 100%;
+  height: 42px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.edit-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .edit-content {
+    padding: 20px;
+  }
+}

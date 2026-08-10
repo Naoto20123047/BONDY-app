@@ -1,0 +1,253 @@
+.forms-content {
+  padding: 40px 72px 64px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.forms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.forms-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.forms-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* PC:左右2カラム */
+.forms-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 56px;
+  align-items: start;
+}
+
+.forms-col {
+  min-width: 0;
+}
+
+.forms-section-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+  margin: 0 0 12px;
+}
+
+.forms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.forms-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  cursor: pointer;
+  transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.forms-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.forms-card.pending {
+  border-left-color: var(--color-accent);
+}
+
+.forms-card.done {
+  background: var(--color-page);
+}
+
+.forms-card.expired {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.forms-card.expired:hover {
+  box-shadow: var(--shadow-sm);
+  transform: none;
+}
+
+.forms-card-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.forms-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.forms-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.forms-tag {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.forms-tag.event {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.forms-tag.survey {
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
+}
+
+.forms-answered {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--color-accent);
+}
+
+.forms-expired-tag {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.forms-card-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0 0 8px;
+}
+
+.forms-card.done .forms-card-title {
+  margin-bottom: 0;
+}
+
+.forms-card-deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.forms-card-deadline i {
+  font-size: 14px;
+}
+
+.forms-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.forms-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.forms-action-btn:hover {
+  background: var(--color-surface-sub);
+}
+
+.forms-action-btn i {
+  font-size: 14px;
+}
+
+.forms-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.forms-action-icon:hover {
+  background: #FBEDEB;
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+.forms-empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 32px;
+}
+
+/* ===== スマホ:従来のデザイン ===== */
+@media (max-width: 768px) {
+  .forms-content {
+    padding: 20px;
+    max-width: 620px;
+  }
+
+  .forms-create {
+    padding: 8px 16px;
+  }
+
+  .forms-columns {
+    display: block;
+  }
+
+  .forms-card {
+    padding: 16px 18px;
+  }
+
+  .forms-card-body {
+    flex-direction: column;
+  }
+
+  .forms-actions {
+    width: 100%;
+  }
+
+  .forms-action-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
