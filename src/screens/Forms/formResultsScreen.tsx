@@ -1,8 +1,8 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import "./formResultsScreen.css";
 import { useFormResults } from "./useFormResults";
 
-// 選択肢の文言に応じたバーの色(定番の選択肢だけ色分け、それ以外は緑)
 const barColor = (option: string): string => {
   if (option === "参加") return "var(--color-accent)";
   if (option === "不参加") return "var(--color-danger)";
@@ -10,7 +10,6 @@ const barColor = (option: string): string => {
   return "var(--color-accent)";
 };
 
-// 回答タグの色(選択式の回答表示用)
 const tagClass = (value: string): string => {
   if (value === "参加") return "results-tag-yes";
   if (value === "不参加") return "results-tag-no";
@@ -23,11 +22,26 @@ export default function FormResultsScreen() {
   const navigate = useNavigate();
   const { form, rows, isEvent, loading, summarize } = useFormResults(id);
 
+  const [current, setCurrent] = useState(0);
+  const [openTexts, setOpenTexts] = useState<string[]>([]);
+
   if (loading || !form) {
     return <div className="results-content">読み込み中...</div>;
   }
 
   const selectQuestions = form.questions.filter((q) => q.type === "select" && q.options);
+  const textQuestions = form.questions.filter((q) => q.type === "text");
+
+  const index = Math.min(current, Math.max(rows.length - 1, 0));
+  const row = rows[index];
+
+  const prev = () => setCurrent((i) => Math.max(0, i - 1));
+  const next = () => setCurrent((i) => Math.min(rows.length - 1, i + 1));
+
+  const toggleText = (qid: string) =>
+    setOpenTexts((prev) =>
+      prev.includes(qid) ? prev.filter((x) => x !== qid) : [...prev, qid]
+    );
 
   return (
     <div className="results-content">
@@ -35,15 +49,15 @@ export default function FormResultsScreen() {
         <i className="ti ti-arrow-left" /> フォーム一覧に戻る
       </button>
 
-      <h2 className="results-title">{form.title}</h2>
-      <div className="results-tags">
-        <span className={`results-type-tag ${form.type === "イベント" ? "event" : "survey"}`}>
-          {form.type}
-        </span>
-      </div>
-
-      {/* サマリー:回答数 */}
-      <div className="results-summary-cards">
+      <div className="results-header">
+        <div className="results-header-main">
+          <h2 className="results-title">{form.title}</h2>
+          <div className="results-tags">
+            <span className={`results-type-tag ${form.type === "イベント" ? "event" : "survey"}`}>
+              {form.type}
+            </span>
+          </div>
+        </div>
         <div className="results-summary-card">
           <p className="results-summary-label">回答数</p>
           <p className="results-summary-value">{rows.length}</p>
@@ -53,52 +67,217 @@ export default function FormResultsScreen() {
       {rows.length === 0 ? (
         <p className="results-empty">まだ回答がありません</p>
       ) : (
-        <>
-          {/* 選択式の集計(割合バー) */}
-          {selectQuestions.map((q) => {
-            const counts = summarize(q.id, q.options!);
-            const total = rows.length || 1;
-            return (
-              <div key={q.id} className="results-chart">
-                <p className="results-question-label">{q.label}</p>
-                {q.options!.map((opt) => {
-                  const count = counts[opt];
-                  const pct = Math.round((count / total) * 100);
-                  return (
-                    <div key={opt} className="results-bar-block">
-                      <div className="results-bar-head">
-                        <span className="results-bar-label">{opt}</span>
-                        <span className="results-bar-meta">
-                          {count}件 ・ {pct}%
+        <div className="results-columns">
+          {/* 左:集計 */}
+          <div className="results-col-left">
+            <p className="results-section-label">集計</p>
+
+            <div className="results-scroll">
+              {selectQuestions.length === 0 && textQuestions.length === 0 && (
+                <p className="results-no-chart">集計できる質問はありません</p>
+              )}
+
+              {/* 選択式:割合バー */}
+              {selectQuestions.map((q) => {
+                const counts = summarize(q.id, q.options!);
+                const total = rows.length || 1;
+                return (
+                  <div key={q.id} className="results-chart">
+                    <p className="results-question-label">{q.label}</p>
+                    {q.options!.map((opt) => {
+                      const count = counts[opt];
+                      const pct = Math.round((count / total) * 100);
+                      return (
+                        <div key={opt} className="results-bar-block">
+                          <div className="results-bar-head">
+                            <span className="results-bar-label">{opt}</span>
+                            <span className="results-bar-meta">
+                              {count}件 ・ {pct}%
+                            </span>
+                          </div>
+                          <div className="results-bar-track">
+                            <div
+                              className="results-bar-fill"
+                              style={{ width: `${pct}%`, background: barColor(opt) }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {/* 記述式:ボタンで開閉 */}
+              {textQuestions.map((q) => {
+                const answers = rows
+                  .map((r) => ({
+                    id: r.id,
+                    name: r.respondentName,
+                    value: (r.answers[q.id] ?? "").trim(),
+                  }))
+                  .filter((a) => a.value !== "");
+                const isOpen = openTexts.includes(q.id);
+
+                return (
+                  <div key={q.id} className="results-chart">
+                    <div className="results-text-head">
+                      <p className="results-question-label">{q.label}</p>
+                      <span className="results-text-count">
+                        {answers.length}件の回答
+                      </span>
+                    </div>
+
+                    <button
+                      className="results-text-toggle"
+                      onClick={() => toggleText(q.id)}
+                      disabled={answers.length === 0}
+                    >
+                      <i className={`ti ${isOpen ? "ti-chevron-up" : "ti-chevron-down"}`} />
+                      {answers.length === 0
+                        ? "回答なし"
+                        : isOpen
+                        ? "回答を閉じる"
+                        : "回答を表示"}
+                    </button>
+
+                    {isOpen && answers.length > 0 && (
+                      <div className="results-text-list">
+                        {answers.map((a) => (
+                          <div key={a.id} className="results-text-item">
+                            <span className="results-text-name">{a.name}</span>
+                            <p className="results-text-value">{a.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 右:個別回答 */}
+          <div className="results-col-right">
+            <div className="results-list-head">
+              <p className="results-section-label">
+                {isEvent ? "バンド別の回答" : "個別の回答"}
+              </p>
+              <div className="results-pager">
+                <button
+                  className="results-pager-btn"
+                  onClick={prev}
+                  disabled={index === 0}
+                  aria-label="前の回答"
+                >
+                  <i className="ti ti-chevron-left" />
+                </button>
+                <span className="results-pager-count">
+                  {index + 1} / {rows.length}
+                </span>
+                <button
+                  className="results-pager-btn"
+                  onClick={next}
+                  disabled={index === rows.length - 1}
+                  aria-label="次の回答"
+                >
+                  <i className="ti ti-chevron-right" />
+                </button>
+              </div>
+            </div>
+
+            {rows.length > 1 && (
+              <select
+                className="results-select"
+                value={index}
+                onChange={(e) => setCurrent(Number(e.target.value))}
+              >
+                {rows.map((r, i) => (
+                  <option key={r.id} value={i}>
+                    {i + 1}. {r.respondentName}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div className="results-scroll">
+              <div className="results-row">
+                <div className="results-row-head">
+                  <div className="results-row-head-main">
+                    <span className="results-respondent">{row.respondentName}</span>
+                    {isEvent && (
+                      <span className="results-submitter">
+                        回答者:{row.submitterName}
+                      </span>
+                    )}
+                  </div>
+                  <span className="results-date">{row.submittedAt}</span>
+                </div>
+
+                <div className="results-meta">
+                  {isEvent ? (
+                    <>
+                      <div className="results-meta-item">
+                        <span className="results-meta-label">送信者</span>
+                        <span className="results-meta-value">
+                          {row.submitterName}（{row.studentId}）
                         </span>
                       </div>
-                      <div className="results-bar-track">
-                        <div
-                          className="results-bar-fill"
-                          style={{ width: `${pct}%`, background: barColor(opt) }}
-                        />
+                      <div className="results-meta-item">
+                        <span className="results-meta-label">メンバー</span>
+                        <span className="results-meta-value">
+                          {row.bandMembers.length === 0 ? (
+                            <span className="results-meta-none">—</span>
+                          ) : (
+                            <span className="results-member-tags">
+                              {row.bandMembers.map((bm, i) => (
+                                <span key={`${bm.name}-${i}`} className="results-member-tag">
+                                  {bm.name}
+                                  <span className="results-member-part">{bm.part}</span>
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </span>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-
-          {/* 個別回答の一覧 */}
-          <p className="results-list-label">
-            {isEvent ? "バンド別の回答" : "個別の回答"}
-          </p>
-          <div className="results-list">
-            {rows.map((r) => (
-              <div key={r.id} className="results-row">
-                <div className="results-row-head">
-                  <span className="results-respondent">{r.respondentName}</span>
-                  <span className="results-date">{r.submittedAt}</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="results-meta-item">
+                        <span className="results-meta-label">学籍番号</span>
+                        <span className="results-meta-value">{row.studentId}</span>
+                      </div>
+                      <div className="results-meta-item">
+                        <span className="results-meta-label">学部・学年</span>
+                        <span className="results-meta-value">
+                          {row.faculty}・{row.gradeLabel}
+                        </span>
+                      </div>
+                      <div className="results-meta-item">
+                        <span className="results-meta-label">パート</span>
+                        <span className="results-meta-value">{row.part}</span>
+                      </div>
+                      <div className="results-meta-item">
+                        <span className="results-meta-label">所属バンド</span>
+                        <span className="results-meta-value">
+                          {row.bandNames.length === 0 ? (
+                            <span className="results-meta-none">なし</span>
+                          ) : (
+                            <span className="results-member-tags">
+                              {row.bandNames.map((n) => (
+                                <span key={n} className="results-band-tag">{n}</span>
+                              ))}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
+
                 <div className="results-answers">
                   {form.questions.map((q) => {
-                    const val = r.answers[q.id];
+                    const val = row.answers[q.id];
                     return (
                       <div key={q.id} className="results-answer">
                         <span className="results-answer-label">{q.label}</span>
@@ -112,9 +291,9 @@ export default function FormResultsScreen() {
                   })}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
