@@ -1,10 +1,30 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import type { FormDef, FormResponse } from "../../Types/types";
+import { calcGrade } from "../../lib/grade";
+import type { FormDef, FormResponse, Member, Band } from "../../Types/types";
+
+// バンドのメンバー(氏名 + パート)
+export interface BandMemberInfo {
+  name: string;
+  part: string;
+}
 
 export interface ResultRow extends FormResponse {
-  respondentName: string; // アンケート型=氏名、イベント型=バンド名
+  respondentName: string;   // アンケート型=氏名、イベント型=バンド名
+
+  // 回答を送信した本人の情報
+  submitterName: string;
+  studentId: string;
+  faculty: string;
+  gradeLabel: string;
+  part: string;
+
+  // アンケート型:本人の所属バンド名
+  bandNames: string[];
+
+  // イベント型:そのバンドのメンバー構成
+  bandMembers: BandMemberInfo[];
 }
 
 export function useFormResults(id: string | undefined) {
@@ -37,29 +57,64 @@ export function useFormResults(id: string | undefined) {
           ...(d.data() as Omit<FormResponse, "id">),
         }));
 
-        // 表示名の解決:イベント型はバンド名、アンケート型は氏名
-        let nameResolver: (r: FormResponse) => string;
-        if (formData.type === "イベント") {
-          const bandsSnap = await getDocs(collection(db, "bands"));
-          const bandMap: Record<string, string> = {};
-          bandsSnap.docs.forEach((d) => {
-            bandMap[d.id] = (d.data() as { name: string }).name;
-          });
-          nameResolver = (r) => (r.bandId ? bandMap[r.bandId] ?? "不明" : "不明");
-        } else {
-          const memSnap = await getDocs(collection(db, "members"));
-          const memMap: Record<string, string> = {};
-          memSnap.docs.forEach((d) => {
-            memMap[d.id] = (d.data() as { name: string }).name;
-          });
-          nameResolver = (r) => memMap[r.memberId] ?? "不明";
-        }
+        // メンバー情報(氏名・学籍番号・学部・学年・パート)
+        const memSnap = await getDocs(collection(db, "members"));
+        const memMap: Record<string, Member> = {};
+        memSnap.docs.forEach((d) => {
+          memMap[d.id] = { id: d.id, ...(d.data() as Omit<Member, "id">) };
+        });
+
+        // バンド情報
+        const bandsSnap = await getDocs(collection(db, "bands"));
+        const bands: Band[] = bandsSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Band, "id">),
+        }));
+        const bandMap: Record<string, Band> = {};
+        bands.forEach((b) => (bandMap[b.id] = b));
+
+        const isEventForm = formData.type === "イベント";
 
         setRows(
-          responses.map((r) => ({
-            ...r,
-            respondentName: nameResolver(r),
-          }))
+          responses.map((r) => {
+            const m = memMap[r.memberId];
+            const submitterName = m?.name ?? "不明";
+
+            // 表示名:イベント型はバンド名、アンケート型は氏名
+            const respondentName = isEventForm
+              ? (r.bandId ? bandMap[r.bandId]?.name ?? "不明" : "不明")
+              : submitterName;
+
+            // アンケート型:本人が所属する解散以外のバンド
+            const bandNames = bands
+              .filter(
+                (b) =>
+                  b.status !== "解散" &&
+                  b.members.some((bm) => bm.memberId === r.memberId)
+              )
+              .map((b) => b.name);
+
+            // イベント型:そのバンドのメンバー構成
+            const bandMembers: BandMemberInfo[] =
+              isEventForm && r.bandId && bandMap[r.bandId]
+                ? bandMap[r.bandId].members.map((bm) => ({
+                    name: memMap[bm.memberId]?.name ?? "不明",
+                    part: bm.part,
+                  }))
+                : [];
+
+            return {
+              ...r,
+              respondentName,
+              submitterName,
+              studentId: m?.studentId ?? "—",
+              faculty: m?.faculty ?? "—",
+              gradeLabel: m ? calcGrade(m.enrollmentYear, m.isOB) : "—",
+              part: m?.part ?? "—",
+              bandNames,
+              bandMembers,
+            };
+          })
         );
       } catch (e) {
         console.error("集計の取得に失敗しました", e);
