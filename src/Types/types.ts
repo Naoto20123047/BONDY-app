@@ -41,6 +41,11 @@ export interface FormQuestion {
   label: string;
   type: "text" | "select";
   options?: string[];
+  required?: boolean;        // 必須回答(未設定は任意)
+  showIf?: {                 // 表示条件(直前の質問の回答)
+    questionId: string;
+    value: string;
+  };
 }
 
 export interface FormDef {

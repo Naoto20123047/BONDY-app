@@ -6,28 +6,24 @@ import type { FormType, FormQuestion } from "../../Types/types";
 
 const genId = () => Math.random().toString(36).slice(2, 9);
 
-const eventTemplate = (): FormQuestion[] => [
-  { id: genId(), label: "出演しますか?", type: "select", options: ["参加", "不参加", "未定"] },
-];
-
 export function useCreateForm() {
   const [type, setType] = useState<FormType>("イベント");
   const [title, setTitle] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [questions, setQuestions] = useState<FormQuestion[]>(eventTemplate());
+  const [questions, setQuestions] = useState<FormQuestion[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // 種類を変えても質問は保持する
   const changeType = (newType: FormType) => {
     setType(newType);
-    setQuestions(newType === "イベント" ? eventTemplate() : []);
   };
 
   const addQuestion = (qType: "text" | "select") => {
     setQuestions((prev) => [
       ...prev,
       qType === "select"
-        ? { id: genId(), label: "", type: "select", options: [""] }
-        : { id: genId(), label: "", type: "text" },
+        ? { id: genId(), label: "", type: "select", options: [""], required: false }
+        : { id: genId(), label: "", type: "text", required: false },
     ]);
   };
 
@@ -35,15 +31,37 @@ export function useCreateForm() {
     setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, label } : q)));
   };
 
-  const updateOption = (qId: string, index: number, value: string) => {
+  // 必須のON/OFF
+  const toggleRequired = (id: string) => {
     setQuestions((prev) =>
-      prev.map((q) => {
-        if (q.id !== qId || !q.options) return q;
-        const options = [...q.options];
-        options[index] = value;
-        return { ...q, options };
-      })
+      prev.map((q) => (q.id === id ? { ...q, required: !q.required } : q))
     );
+  };
+
+  const updateOption = (qId: string, index: number, value: string) => {
+    setQuestions((prev) => {
+      const idx = prev.findIndex((q) => q.id === qId);
+      if (idx === -1) return prev;
+      const oldValue = prev[idx].options?.[index];
+
+      return prev.map((q, i) => {
+        // 選択肢を更新
+        if (q.id === qId && q.options) {
+          const options = [...q.options];
+          options[index] = value;
+          return { ...q, options };
+        }
+        // この選択肢を条件にしている次の質問があれば、条件値も追従させる
+        if (
+          i === idx + 1 &&
+          q.showIf?.questionId === qId &&
+          q.showIf.value === oldValue
+        ) {
+          return { ...q, showIf: { questionId: qId, value } };
+        }
+        return q;
+      });
+    });
   };
 
   const addOption = (qId: string) => {
@@ -55,17 +73,61 @@ export function useCreateForm() {
   };
 
   const removeOption = (qId: string, index: number) => {
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id === qId && q.options
-          ? { ...q, options: q.options.filter((_, i) => i !== index) }
-          : q
-      )
-    );
+    setQuestions((prev) => {
+      const idx = prev.findIndex((q) => q.id === qId);
+      const removed = prev[idx]?.options?.[index];
+
+      return prev.map((q, i) => {
+        // 選択肢を削除
+        if (q.id === qId && q.options) {
+          return { ...q, options: q.options.filter((_, oi) => oi !== index) };
+        }
+        // 削除した選択肢を条件にしていた次の質問は、条件を解除
+        if (
+          i === idx + 1 &&
+          q.showIf?.questionId === qId &&
+          q.showIf.value === removed
+        ) {
+          const { showIf, ...rest } = q;
+          return rest as FormQuestion;
+        }
+        return q;
+      });
+    });
   };
 
   const removeQuestion = (id: string) => {
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
+    setQuestions((prev) =>
+      prev
+        .filter((q) => q.id !== id)
+        // 削除した質問を条件にしていた質問があれば、条件を解除
+        .map((q) => {
+          if (q.showIf?.questionId === id) {
+            const { showIf, ...rest } = q;
+            return rest as FormQuestion;
+          }
+          return q;
+        })
+    );
+  };
+
+  // 表示条件の設定(直前の質問の選択肢を指定 / null で解除)
+  const setShowIf = (id: string, value: string | null) => {
+    setQuestions((prev) => {
+      const idx = prev.findIndex((q) => q.id === id);
+      if (idx <= 0) return prev;
+      const prevQuestion = prev[idx - 1];
+      if (prevQuestion.type !== "select") return prev;
+
+      return prev.map((q, i) => {
+        if (i !== idx) return q;
+        if (value === null) {
+          const { showIf, ...rest } = q;
+          return rest as FormQuestion;
+        }
+        return { ...q, showIf: { questionId: prevQuestion.id, value } };
+      });
+    });
   };
 
   const save = async (onDone: () => void) => {
@@ -77,18 +139,41 @@ export function useCreateForm() {
       window.alert("回答期限を設定してください。");
       return;
     }
+    if (questions.length === 0) {
+      window.alert("質問を1つ以上追加してください。");
+      return;
+    }
     if (questions.some((q) => !q.label.trim())) {
       window.alert("質問文が空の項目があります。");
       return;
     }
+    if (
+      questions.some(
+        (q) => q.type === "select" && (q.options ?? []).some((o) => !o.trim())
+      )
+    ) {
+      window.alert("選択肢が空の項目があります。");
+      return;
+    }
     setSaving(true);
     try {
-      // options が undefined の質問があるとエラーになるので整形する
-      const cleanedQuestions = questions.map((q) =>
-        q.type === "select"
-          ? { id: q.id, label: q.label, type: q.type, options: q.options ?? [] }
-          : { id: q.id, label: q.label, type: q.type }
-      );
+      // undefined は保存できないため、値のあるフィールドだけを残す
+      const cleanedQuestions = questions.map((q) => {
+        const base: Record<string, unknown> = {
+          id: q.id,
+          label: q.label.trim(),
+          type: q.type,
+          required: q.required === true,
+        };
+        if (q.type === "select") {
+          base.options = (q.options ?? []).map((o) => o.trim());
+        }
+        if (q.showIf) {
+          base.showIf = { questionId: q.showIf.questionId, value: q.showIf.value };
+        }
+        return base;
+      });
+
       const formRef = await addDoc(collection(db, "forms"), {
         type,
         title: title.trim(),
@@ -127,10 +212,12 @@ export function useCreateForm() {
     questions,
     addQuestion,
     updateLabel,
+    toggleRequired,
     updateOption,
     addOption,
     removeOption,
     removeQuestion,
+    setShowIf,
     saving,
     save,
   } as const;
