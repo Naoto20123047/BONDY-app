@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { calcGrade } from "../../lib/grade";
+import { filterVisibleQuestions } from "./useFormAnswer";
 import type { FormDef, FormResponse, Member, Band } from "../../Types/types";
 
 // バンドのメンバー(氏名 + パート)
@@ -25,6 +26,9 @@ export interface ResultRow extends FormResponse {
 
   // イベント型:そのバンドのメンバー構成
   bandMembers: BandMemberInfo[];
+
+  // この回答で表示されていた質問のID
+  visibleQuestionIds: string[];
 }
 
 export function useFormResults(id: string | undefined) {
@@ -103,6 +107,12 @@ export function useFormResults(id: string | undefined) {
                   }))
                 : [];
 
+            // この回答内容で表示されていた質問を再現する
+            const visibleQuestionIds = filterVisibleQuestions(
+              formData.questions,
+              r.answers
+            ).map((q) => q.id);
+
             return {
               ...r,
               respondentName,
@@ -113,6 +123,7 @@ export function useFormResults(id: string | undefined) {
               part: m?.part ?? "—",
               bandNames,
               bandMembers,
+              visibleQuestionIds,
             };
           })
         );
@@ -127,15 +138,32 @@ export function useFormResults(id: string | undefined) {
 
   const isEvent = form?.type === "イベント";
 
+  /**
+   * 選択式の集計。
+   * 条件付き質問は「その質問が表示された回答」だけを母数にする。
+   */
   const summarize = (questionId: string, options: string[]) => {
     const counts: Record<string, number> = {};
     options.forEach((opt) => (counts[opt] = 0));
-    rows.forEach((r) => {
+
+    // この質問が表示されていた回答だけを対象にする
+    const target = rows.filter((r) => r.visibleQuestionIds.includes(questionId));
+
+    target.forEach((r) => {
       const val = r.answers[questionId];
       if (val && counts[val] !== undefined) counts[val] += 1;
     });
+
     return counts;
   };
 
-  return { form, rows, isEvent, loading, summarize } as const;
+  /** その質問が表示された回答数(割合計算の母数) */
+  const countVisible = (questionId: string): number =>
+    rows.filter((r) => r.visibleQuestionIds.includes(questionId)).length;
+
+  /** その質問が条件付きかどうか */
+  const isConditional = (questionId: string): boolean =>
+    form?.questions.find((q) => q.id === questionId)?.showIf !== undefined;
+
+  return { form, rows, isEvent, loading, summarize, countVisible, isConditional } as const;
 }

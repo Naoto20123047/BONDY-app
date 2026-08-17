@@ -2,12 +2,42 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where, addDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
-import type { FormDef, Band, FormResponse } from "../../Types/types";
+import type { FormDef, Band, FormResponse, FormQuestion } from "../../Types/types";
 
 // 現在の年度(4月始まり)
 const currentFiscalYear = () => {
   const now = new Date();
   return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+};
+
+/**
+ * 表示条件をもとに、表示すべき質問だけを返す。
+ * - showIf が無ければ常に表示
+ * - showIf があれば、対象の質問が「表示されていて」かつ「指定の値が選ばれている」ときだけ表示
+ *   (前の質問が非表示なら、この質問も非表示になる)
+ */
+export const filterVisibleQuestions = (
+  questions: FormQuestion[],
+  answers: Record<string, string>
+): FormQuestion[] => {
+  const visibleIds = new Set<string>();
+  const result: FormQuestion[] = [];
+
+  for (const q of questions) {
+    if (!q.showIf) {
+      visibleIds.add(q.id);
+      result.push(q);
+      continue;
+    }
+    const targetVisible = visibleIds.has(q.showIf.questionId);
+    const matched = answers[q.showIf.questionId] === q.showIf.value;
+    if (targetVisible && matched) {
+      visibleIds.add(q.id);
+      result.push(q);
+    }
+  }
+
+  return result;
 };
 
 export function useFormAnswer(id: string | undefined) {
@@ -101,6 +131,9 @@ export function useFormAnswer(id: string | undefined) {
   // 選択中バンドの既存回答(あれば編集モード)
   const existingResponse = responses.find((r) => r.bandId === bandId);
 
+  // 表示条件を満たす質問だけ
+  const visibleQuestions = form ? filterVisibleQuestions(form.questions, answers) : [];
+
   const selectBand = (newBandId: string) => {
     setBandId(newBandId);
     const existing = responses.find((r) => r.bandId === newBandId);
@@ -129,14 +162,33 @@ export function useFormAnswer(id: string | undefined) {
       window.alert("出演バンドを選択してください。");
       return;
     }
+
+    // 必須チェック(表示されている質問のみ)
+    const unanswered = visibleQuestions.filter(
+      (q) => q.required === true && !(answers[q.id] ?? "").trim()
+    );
+    if (unanswered.length > 0) {
+      window.alert(
+        `必須項目に回答してください。\n\n${unanswered.map((q) => `・${q.label}`).join("\n")}`
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // 非表示になった質問の回答は保存しない
+      const visibleIds = new Set(visibleQuestions.map((q) => q.id));
+      const cleanedAnswers: Record<string, string> = {};
+      Object.entries(answers).forEach(([qid, value]) => {
+        if (visibleIds.has(qid)) cleanedAnswers[qid] = value;
+      });
+
       if (isEvent) {
         // イベント型:バンド単位。既存があれば更新、なければ新規
         const existing = responses.find((r) => r.bandId === bandId);
         if (existing) {
           await updateDoc(doc(db, "formResponses", existing.id), {
-            answers,
+            answers: cleanedAnswers,
             memberId: member.id, // 最後に編集した人
             submittedAt: new Date().toISOString().slice(0, 10),
           });
@@ -145,7 +197,7 @@ export function useFormAnswer(id: string | undefined) {
             formId: form.id,
             memberId: member.id,
             bandId,
-            answers,
+            answers: cleanedAnswers,
             submittedAt: new Date().toISOString().slice(0, 10),
           });
         }
@@ -154,14 +206,14 @@ export function useFormAnswer(id: string | undefined) {
         const mine = responses.find((r) => r.memberId === member.id);
         if (mine) {
           await updateDoc(doc(db, "formResponses", mine.id), {
-            answers,
+            answers: cleanedAnswers,
             submittedAt: new Date().toISOString().slice(0, 10),
           });
         } else {
           await addDoc(collection(db, "formResponses"), {
             formId: form.id,
             memberId: member.id,
-            answers,
+            answers: cleanedAnswers,
             submittedAt: new Date().toISOString().slice(0, 10),
           });
         }
@@ -185,6 +237,7 @@ export function useFormAnswer(id: string | undefined) {
     selectBand,
     answers,
     setAnswer,
+    visibleQuestions,
     existingResponse,
     responses,
     loading,

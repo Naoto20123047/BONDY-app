@@ -20,7 +20,8 @@ const tagClass = (value: string): string => {
 export default function FormResultsScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { form, rows, isEvent, loading, summarize } = useFormResults(id);
+  const { form, rows, isEvent, loading, summarize, countVisible, isConditional } =
+    useFormResults(id);
 
   const [current, setCurrent] = useState(0);
   const [openTexts, setOpenTexts] = useState<string[]>([]);
@@ -54,7 +55,7 @@ export default function FormResultsScreen() {
           <h2 className="results-title">{form.title}</h2>
           <div className="results-tags">
             <span className={`results-type-tag ${form.type === "イベント" ? "event" : "survey"}`}>
-              {form.type}
+              {form.type === "イベント" ? "バンドフォーム" : "個別アンケート"}
             </span>
           </div>
         </div>
@@ -80,30 +81,54 @@ export default function FormResultsScreen() {
               {/* 選択式:割合バー */}
               {selectQuestions.map((q) => {
                 const counts = summarize(q.id, q.options!);
-                const total = rows.length || 1;
+                const visibleCount = countVisible(q.id);
+                const total = visibleCount || 1;
+                const conditional = isConditional(q.id);
+
                 return (
                   <div key={q.id} className="results-chart">
-                    <p className="results-question-label">{q.label}</p>
-                    {q.options!.map((opt) => {
-                      const count = counts[opt];
-                      const pct = Math.round((count / total) * 100);
-                      return (
-                        <div key={opt} className="results-bar-block">
-                          <div className="results-bar-head">
-                            <span className="results-bar-label">{opt}</span>
-                            <span className="results-bar-meta">
-                              {count}件 ・ {pct}%
-                            </span>
+                    <div className="results-chart-head">
+                      <p className="results-question-label">{q.label}</p>
+                      {conditional && (
+                        <span className="results-cond-tag">
+                          <i className="ti ti-arrow-guide" />
+                          条件付き
+                        </span>
+                      )}
+                    </div>
+
+                    {conditional && (
+                      <p className="results-denominator">
+                        この質問が表示された回答:{visibleCount}件 / 全{rows.length}件
+                      </p>
+                    )}
+
+                    {visibleCount === 0 ? (
+                      <p className="results-no-target">
+                        条件を満たす回答がまだありません
+                      </p>
+                    ) : (
+                      q.options!.map((opt) => {
+                        const count = counts[opt];
+                        const pct = Math.round((count / total) * 100);
+                        return (
+                          <div key={opt} className="results-bar-block">
+                            <div className="results-bar-head">
+                              <span className="results-bar-label">{opt}</span>
+                              <span className="results-bar-meta">
+                                {count}件 ・ {pct}%
+                              </span>
+                            </div>
+                            <div className="results-bar-track">
+                              <div
+                                className="results-bar-fill"
+                                style={{ width: `${pct}%`, background: barColor(opt) }}
+                              />
+                            </div>
                           </div>
-                          <div className="results-bar-track">
-                            <div
-                              className="results-bar-fill"
-                              style={{ width: `${pct}%`, background: barColor(opt) }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </div>
                 );
               })}
@@ -111,6 +136,7 @@ export default function FormResultsScreen() {
               {/* 記述式:ボタンで開閉 */}
               {textQuestions.map((q) => {
                 const answers = rows
+                  .filter((r) => r.visibleQuestionIds.includes(q.id))
                   .map((r) => ({
                     id: r.id,
                     name: r.respondentName,
@@ -118,13 +144,25 @@ export default function FormResultsScreen() {
                   }))
                   .filter((a) => a.value !== "");
                 const isOpen = openTexts.includes(q.id);
+                const conditional = isConditional(q.id);
+                const visibleCount = countVisible(q.id);
 
                 return (
                   <div key={q.id} className="results-chart">
-                    <div className="results-text-head">
+                    <div className="results-chart-head">
                       <p className="results-question-label">{q.label}</p>
+                      {conditional && (
+                        <span className="results-cond-tag">
+                          <i className="ti ti-arrow-guide" />
+                          条件付き
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="results-text-head">
                       <span className="results-text-count">
                         {answers.length}件の回答
+                        {conditional && ` / 表示された${visibleCount}件中`}
                       </span>
                     </div>
 
@@ -276,19 +314,21 @@ export default function FormResultsScreen() {
                 </div>
 
                 <div className="results-answers">
-                  {form.questions.map((q) => {
-                    const val = row.answers[q.id];
-                    return (
-                      <div key={q.id} className="results-answer">
-                        <span className="results-answer-label">{q.label}</span>
-                        {q.type === "select" && val ? (
-                          <span className={`results-answer-tag ${tagClass(val)}`}>{val}</span>
-                        ) : (
-                          <span className="results-answer-value">{val ? val : "—"}</span>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {form.questions
+                    .filter((q) => row.visibleQuestionIds.includes(q.id))
+                    .map((q) => {
+                      const val = row.answers[q.id];
+                      return (
+                        <div key={q.id} className="results-answer">
+                          <span className="results-answer-label">{q.label}</span>
+                          {q.type === "select" && val ? (
+                            <span className={`results-answer-tag ${tagClass(val)}`}>{val}</span>
+                          ) : (
+                            <span className="results-answer-value">{val ? val : "—"}</span>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </div>
