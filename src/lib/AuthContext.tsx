@@ -8,6 +8,7 @@ import type { Member } from "../Types/types";
 export interface MemberBrief {
   name: string;
   nickname?: string;
+  avatarColor?: string;
 }
 
 interface AuthContextValue {
@@ -60,8 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const snap = await getDocs(collection(db, "members"));
       const map: Record<string, MemberBrief> = {};
       snap.docs.forEach((d) => {
-        const data = d.data() as { name: string; nickname?: string };
-        map[d.id] = { name: data.name, nickname: data.nickname };
+        const data = d.data() as { name: string; nickname?: string; avatarColor?: string };
+        map[d.id] = {
+          name: data.name,
+          nickname: data.nickname,
+          avatarColor: data.avatarColor,
+        };
       });
       setMemberMap(map);
     } catch (e) {

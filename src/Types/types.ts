@@ -9,10 +9,11 @@ export interface Member {
   authMethod: "google" | "email";
   name: string;
   nickname?: string;
+  avatarColor?: string;
   faculty: string;
   studentId: string;
   enrollmentYear: number;
-  part: string;
+  parts: string[];
   role: Role;
   positions: Position[];
   isOB: boolean;

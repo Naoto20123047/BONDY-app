@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { calcGrade } from "../../lib/grade";
+import { formatParts } from "../../lib/parts";
 import { filterVisibleQuestions } from "./useFormAnswer";
 import type { FormDef, FormResponse, Member, Band } from "../../Types/types";
 
@@ -16,10 +17,11 @@ export interface ResultRow extends FormResponse {
 
   // 回答を送信した本人の情報
   submitterName: string;
+  nickname: string;
   studentId: string;
   faculty: string;
   gradeLabel: string;
-  part: string;
+  parts: string;            // 表示用に整形済み(例: "Vo・Gt")
 
   // アンケート型:本人の所属バンド名
   bandNames: string[];
@@ -61,7 +63,7 @@ export function useFormResults(id: string | undefined) {
           ...(d.data() as Omit<FormResponse, "id">),
         }));
 
-        // メンバー情報(氏名・学籍番号・学部・学年・パート)
+        // メンバー情報
         const memSnap = await getDocs(collection(db, "members"));
         const memMap: Record<string, Member> = {};
         memSnap.docs.forEach((d) => {
@@ -117,10 +119,11 @@ export function useFormResults(id: string | undefined) {
               ...r,
               respondentName,
               submitterName,
+              nickname: m?.nickname ?? "",
               studentId: m?.studentId ?? "—",
               faculty: m?.faculty ?? "—",
               gradeLabel: m ? calcGrade(m.enrollmentYear, m.isOB) : "—",
-              part: m?.part ?? "—",
+              parts: formatParts(m?.parts),
               bandNames,
               bandMembers,
               visibleQuestionIds,
@@ -146,7 +149,6 @@ export function useFormResults(id: string | undefined) {
     const counts: Record<string, number> = {};
     options.forEach((opt) => (counts[opt] = 0));
 
-    // この質問が表示されていた回答だけを対象にする
     const target = rows.filter((r) => r.visibleQuestionIds.includes(questionId));
 
     target.forEach((r) => {

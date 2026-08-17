@@ -47,6 +47,8 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
   // ログイン中の自分がサークル長か(降格申請の権限判定)
   const iAmLeader = currentMember?.positions.includes("サークル長") ?? false;
 
+  const memberParts = member.parts ?? [];
+
   return (
     <div className="detail-content">
       <button className="detail-back" onClick={() => navigate("/roster")}>
@@ -81,7 +83,17 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
         </div>
         <div className="detail-field">
           <span className="detail-field-label">パート</span>
-          <span className="detail-field-value">{member.part}</span>
+          <span className="detail-field-value">
+            {memberParts.length === 0 ? (
+              <span className="detail-part-none">—</span>
+            ) : (
+              <span className="detail-parts">
+                {memberParts.map((p) => (
+                  <span key={p} className="detail-part-tag">{p}</span>
+                ))}
+              </span>
+            )}
+          </span>
         </div>
         <div className="detail-field">
           <span className="detail-field-label">メール</span>

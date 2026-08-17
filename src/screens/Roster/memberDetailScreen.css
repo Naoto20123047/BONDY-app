@@ -190,3 +190,21 @@
   font-weight: normal;
   margin-left: 4px;
 }
+
+.detail-parts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-part-tag {
+  padding: 3px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+  font-size: 12px;
+}
+
+.detail-part-none {
+  color: var(--color-text-muted);
+}

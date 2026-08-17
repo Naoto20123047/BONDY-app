@@ -86,3 +86,60 @@
   cursor: pointer;
   margin-top: 8px;
 }
+
+.setup-optional {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.setup-optional.multi {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.setup-note {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+
+.setup-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setup-part {
+  min-width: 64px;
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.setup-part:hover:not(.selected) {
+  border-color: var(--color-text-muted);
+  background: var(--color-page);
+  color: var(--color-text);
+}
+
+.setup-part.selected {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+  font-weight: 500;
+}

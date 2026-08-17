@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "./createBandScreen.css";
 import { useCreateBand } from "./useCreateBand";
+import { formatParts } from "../../lib/parts";
 
 export default function CreateBandScreen() {
   const navigate = useNavigate();
@@ -81,7 +82,7 @@ export default function CreateBandScreen() {
             <option value="">+ メンバーを追加</option>
             {availableMembers.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name}({m.part})
+                {m.name}({formatParts(m.parts)})
               </option>
             ))}
           </select>

@@ -1,12 +1,25 @@
 .roster-content {
-  padding: 36px 44px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  padding: 36px 64px 24px;
+  box-sizing: border-box;
 }
 
+/* 上部:固定 */
+.roster-fixed {
+  flex-shrink: 0;
+}
+
+/* タイトルの隣に人数を置く(右上の通知ベルと衝突させない) */
 .roster-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-right: 72px;
 }
 
 .roster-title {
@@ -29,72 +42,108 @@
 
 .roster-search {
   flex: 1;
-  max-width: 280px;
+  max-width: 320px;
   height: 40px;
   padding: 0 12px;
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  color: var(--color-text);
   font-size: 14px;
+  font-family: inherit;
   box-sizing: border-box;
 }
 
+.roster-search:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
 .roster-select {
-  width: 130px;
+  width: 140px;
   height: 40px;
   padding: 0 10px;
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  color: var(--color-text);
   font-size: 14px;
+  font-family: inherit;
 }
 
+.roster-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* リスト:ここだけスクロール */
 .roster-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  padding-right: 6px;
 }
 
 .roster-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 8px;
+  gap: 16px;
+  padding: 14px 12px;
   border: none;
   border-bottom: 0.5px solid var(--color-border);
   background: none;
   cursor: pointer;
   width: 100%;
   text-align: left;
+  flex-shrink: 0;
 }
 
+.roster-row:hover {
+  background: var(--color-surface);
+}
+
+/* 色は avatarStyle() でインライン指定する */
 .roster-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--color-surface-sub);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 15px;
-  color: var(--color-text);
+  font-weight: 500;
   flex-shrink: 0;
 }
 
+/* 氏名とメタ情報を横並びにして横幅を活かす */
 .roster-info {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 20px;
+  min-width: 0;
 }
 
 .roster-name {
   font-size: 15px;
   color: var(--color-text);
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.roster-nickname {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-left: 2px;
 }
 
 .roster-meta {
   font-size: 13px;
   color: var(--color-text-muted);
+  min-width: 0;
 }
 
 .roster-badge {
@@ -103,24 +152,74 @@
   border-radius: var(--radius);
   background: var(--color-accent-bg);
   color: var(--color-accent-text);
+  flex-shrink: 0;
 }
 
 .roster-chevron {
   font-size: 18px;
   color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
+.roster-empty {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  padding: 32px 12px;
+  margin: 0;
+}
+
+/* ===== スマホ:従来のレイアウト ===== */
 @media (max-width: 768px) {
   .roster-content {
+    display: block;
+    height: auto;
+    max-height: none;
+    overflow: visible;
     padding: 20px;
+  }
+
+  /* スマホは通知ベルがヘッダー内にあるので、右端に人数を戻す */
+  .roster-header {
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 0;
+    margin-bottom: 24px;
+  }
+
+  .roster-filters {
+    gap: 8px;
   }
 
   .roster-search {
     max-width: none;
   }
-}
-.roster-nickname {
-  color: var(--color-text-muted);
-  font-size: 13px;
-  margin-left: 2px;
+
+  .roster-select {
+    width: 110px;
+  }
+
+  .roster-list {
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .roster-row {
+    gap: 14px;
+    padding: 14px 8px;
+  }
+
+  .roster-row:hover {
+    background: none;
+  }
+
+  /* 氏名とメタを縦積みに戻す */
+  .roster-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .roster-name {
+    min-width: 0;
+  }
 }
