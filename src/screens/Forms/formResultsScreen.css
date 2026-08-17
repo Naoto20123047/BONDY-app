@@ -147,6 +147,20 @@
   margin-bottom: 0;
 }
 
+/* 質問見出しと条件タグ */
+.results-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.results-chart-head .results-question-label {
+  margin: 0;
+  min-width: 0;
+}
+
 .results-question-label {
   font-size: 15px;
   font-weight: 500;
@@ -155,6 +169,36 @@
   word-break: break-word;
 }
 
+.results-cond-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: #FBF0E9;
+  color: #B5651D;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 条件付き質問の母数表示 */
+.results-denominator {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  background: var(--color-page);
+  border-radius: var(--radius);
+}
+
+.results-no-target {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* 割合バー */
 .results-bar-block {
   margin-bottom: 16px;
 }
@@ -200,23 +244,12 @@
 
 /* 記述式の集計 */
 .results-text-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.results-text-head .results-question-label {
-  margin: 0;
-  min-width: 0;
+  margin-bottom: 12px;
 }
 
 .results-text-count {
   font-size: 12px;
   color: var(--color-text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .results-text-toggle {
@@ -532,7 +565,7 @@
   text-align: center;
 }
 
-/* ===== スマホ:従来どおりページ全体がスクロール ===== */
+/* ===== スマホ:ページ全体がスクロール ===== */
 @media (max-width: 768px) {
   .results-content {
     display: block;
@@ -588,6 +621,11 @@
     padding: 18px 16px;
   }
 
+  .results-chart-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .results-row {
     padding: 16px;
   }
@@ -612,11 +650,6 @@
 
   .results-meta-label {
     width: auto;
-  }
-
-  .results-text-head {
-    flex-direction: column;
-    gap: 6px;
   }
 
   .results-text-toggle {
