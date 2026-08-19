@@ -9,6 +9,7 @@ export function useCreatePost() {
   const [category, setCategory] = useState<PostCategory>("メンバー募集");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (onDone: () => void) => {
@@ -30,6 +31,7 @@ export function useCreatePost() {
         body: body.trim(),
         createdAt: new Date().toISOString(),
         resolved: false,
+        isAnonymous,
       });
       onDone();
     } catch (e) {
@@ -47,7 +49,9 @@ export function useCreatePost() {
     setTitle,
     body,
     setBody,
+    isAnonymous,
+    setIsAnonymous,
     submitting,
     submit,
   } as const;
-}
+}

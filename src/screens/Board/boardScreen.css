@@ -127,6 +127,14 @@
   color: var(--color-text-muted);
 }
 
+.board-anon-badge {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+}
+
 .board-card-title {
   font-size: 17px;
   font-weight: 500;

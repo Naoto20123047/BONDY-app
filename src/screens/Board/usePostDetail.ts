@@ -52,12 +52,16 @@ export function usePostDetail(id: string | undefined) {
       const postData = { id: snap.id, ...(snap.data() as Omit<Post, "id">) };
       setPost(postData);
 
-      const memSnap = await getDocs(collection(db, "members"));
-      const nameMap: Record<string, string> = {};
-      memSnap.docs.forEach((d) => {
-        nameMap[d.id] = (d.data() as { name: string }).name;
-      });
-      setAuthorName(nameMap[postData.authorId] ?? "不明");
+      if (postData.isAnonymous) {
+        setAuthorName(postData.authorId === member?.id ? "匿名（あなた）" : "匿名");
+      } else {
+        const memSnap = await getDocs(collection(db, "members"));
+        const nameMap: Record<string, string> = {};
+        memSnap.docs.forEach((d) => {
+          nameMap[d.id] = (d.data() as { name: string }).name;
+        });
+        setAuthorName(nameMap[postData.authorId] ?? "不明");
+      }
     } catch (e) {
       console.error("投稿の取得に失敗しました", e);
     } finally {
@@ -148,7 +152,9 @@ export function usePostDetail(id: string | undefined) {
         await createNotification(
           post.authorId,
           "post_comment",
-          `${member.name}さんがあなたの投稿「${post.title}」にコメントしました`,
+          post.isAnonymous
+            ? `匿名のメンバーがあなたの投稿「${post.title}」にコメントしました`
+            : `${member.name}さんがあなたの投稿「${post.title}」にコメントしました`,
           `/board/${post.id}`
         );
       }
@@ -180,7 +186,9 @@ export function usePostDetail(id: string | undefined) {
         await createNotification(
           post.authorId,
           "post_comment",
-          `${member.name}さんがあなたの投稿「${post.title}」にスタンプを送りました`,
+          post.isAnonymous
+            ? `匿名のメンバーがあなたの投稿「${post.title}」にスタンプを送りました`
+            : `${member.name}さんがあなたの投稿「${post.title}」にスタンプを送りました`,
           `/board/${post.id}`
         );
       }
@@ -286,4 +294,4 @@ export function usePostDetail(id: string | undefined) {
     deletePost,
     deleteComment,
   } as const;
-}
+}

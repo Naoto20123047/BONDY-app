@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./layout.css";
 import NotificationBell from "./NotificationBell";
+import InstallPrompt from "./InstallPrompt";
 import { signOut } from "firebase/auth";
 import { auth } from "../../lib/firebase";
 
@@ -142,6 +143,8 @@ return (
           <span>メニュー</span>
         </button>
       </nav>
+
+      <InstallPrompt />
     </div>
   );
-}
+}

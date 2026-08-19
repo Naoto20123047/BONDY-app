@@ -407,3 +407,222 @@
   overflow-y: auto;
   width: 260px;
 }
+
+/* リアクションした人の一覧(長押しで表示) */
+.chat-reaction-list-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 33, 30, 0.4);
+  z-index: 300;
+  animation: chat-modal-fade 0.18s ease;
+}
+
+.chat-reaction-list-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, calc(100vw - 40px));
+  max-height: min(70vh, 480px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(26, 33, 30, 0.24);
+  z-index: 301;
+  animation: chat-modal-pop 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.chat-reaction-list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 18px;
+  border-bottom: 0.5px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.chat-reaction-list-emoji {
+  font-size: 20px;
+  display: inline-flex;
+}
+
+.chat-reaction-list-emoji-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.chat-reaction-list-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.chat-reaction-list-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-reaction-list-body {
+  overflow-y: auto;
+  padding: 8px 18px 16px;
+}
+
+.chat-reaction-list-item {
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--color-text);
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.chat-reaction-list-item:last-child {
+  border-bottom: none;
+}
+
+.chat-reaction-list-empty {
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+@keyframes chat-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes chat-modal-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* リアクション一覧(種類ごと、本文を長押しで表示) */
+.chat-reaction-group-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 33, 30, 0.4);
+  z-index: 300;
+  animation: chat-modal-fade 0.18s ease;
+}
+
+.chat-reaction-group-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, calc(100vw - 40px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(26, 33, 30, 0.24);
+  z-index: 301;
+  animation: chat-modal-pop 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.chat-reaction-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 18px;
+  border-bottom: 0.5px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.chat-reaction-group-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.chat-reaction-group-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-reaction-group-body {
+  overflow-y: auto;
+  padding: 8px 18px 16px;
+}
+
+.chat-reaction-group-section {
+  padding: 12px 0;
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.chat-reaction-group-section:last-child {
+  border-bottom: none;
+}
+
+.chat-reaction-group-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.chat-reaction-group-section-emoji {
+  font-size: 17px;
+  display: inline-flex;
+}
+
+.chat-reaction-group-section-emoji-img {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+}
+
+.chat-reaction-group-section-count {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.chat-reaction-group-section-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-reaction-group-name {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.chat-reaction-group-empty {
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}

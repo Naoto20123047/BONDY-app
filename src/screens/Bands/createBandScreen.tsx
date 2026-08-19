@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import "./createBandScreen.css";
 import { useCreateBand } from "./useCreateBand";
 import { formatParts } from "../../lib/parts";
+import { avatarStyle } from "../../lib/avatarColors";
 
 export default function CreateBandScreen() {
   const navigate = useNavigate();
@@ -46,7 +47,9 @@ export default function CreateBandScreen() {
         <div className="create-band-members">
           {selected.map((m) => (
             <div key={m.memberId} className="create-band-member">
-              <div className="create-band-avatar">{m.name.charAt(0)}</div>
+              <div className="create-band-avatar" style={avatarStyle(m.avatarColor)}>
+                {m.name.charAt(0)}
+              </div>
               <span className="create-band-member-name">
                 {m.name}
                 {m.memberId === currentMemberId && (
@@ -98,4 +101,4 @@ export default function CreateBandScreen() {
       </button>
     </div>
   );
-}
+}

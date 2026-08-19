@@ -1,9 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import "./postDetailScreen.css";
 import { usePostDetail } from "./usePostDetail";
 import { useAuth } from "../../lib/AuthContext";
 import { emojiStamps, imageStamps, quickReactions } from "../../lib/stamps";
+import { avatarStyle } from "../../lib/avatarColors";
+import { buildAnonLabelMap, anonAvatarColorId } from "../../lib/anon";
 
 const categoryClass = (c: string) => {
   switch (c) {
@@ -23,7 +25,7 @@ const isImageStamp = (s: string) => s.startsWith("/");
 export default function PostDetailScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { member } = useAuth();
+  const { member, memberMap } = useAuth();
   const {
     post,
     authorName,
@@ -43,7 +45,30 @@ export default function PostDetailScreen() {
   const [showStamps, setShowStamps] = useState(false);
   const [reactionTarget, setReactionTarget] = useState<string | null>(null);
   const [reactionExpanded, setReactionExpanded] = useState(false);
-  const longPressTimer = useRef<number | null>(null);
+  const [reactionListTarget, setReactionListTarget] = useState<{ id: string; emoji: string } | null>(null);
+  const [reactionGroupTarget, setReactionGroupTarget] = useState<string | null>(null);
+  const reactionLongPressTimer = useRef<number | null>(null);
+  const reactionLongPressFired = useRef(false);
+  const messageLongPressTimer = useRef<number | null>(null);
+  const messageLongPressFired = useRef(false);
+
+  // リアクション追加パネルの外側をタップしたら閉じる(チャット画面と同じ挙動に統一)
+  useEffect(() => {
+    if (!reactionTarget) return;
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest(".post-detail-react-picker") || t.closest(".post-detail-comment-pressable")) return;
+      setReactionTarget(null);
+      setReactionExpanded(false);
+    };
+    const timer = window.setTimeout(() => {
+      document.addEventListener("click", onDocClick);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("click", onDocClick);
+    };
+  }, [reactionTarget]);
 
   if (loading) {
     return <div className="post-detail-content">読み込み中...</div>;
@@ -60,6 +85,25 @@ export default function PostDetailScreen() {
     );
   }
 
+  // 匿名スレッドの場合、コメントの投稿者ごとに「匿名A」「匿名B」...のラベルを割り振る
+  const anonLabelMap = post.isAnonymous ? buildAnonLabelMap(comments) : {};
+
+  const commentDisplayName = (c: (typeof comments)[number]) => {
+    if (!post.isAnonymous) return c.authorName;
+    const label = anonLabelMap[c.authorId] ?? "匿名";
+    return c.isMine ? `${label}（あなた）` : label;
+  };
+
+  const commentAvatarLabel = (c: (typeof comments)[number]) => {
+    if (!post.isAnonymous) return c.authorName.charAt(0);
+    return (anonLabelMap[c.authorId] ?? "匿名").slice(-1);
+  };
+
+  const commentAvatarStyle = (c: (typeof comments)[number]) => {
+    if (!post.isAnonymous) return avatarStyle(memberMap[c.authorId]?.avatarColor);
+    return avatarStyle(anonAvatarColorId(anonLabelMap[c.authorId] ?? "匿名"));
+  };
+
   const handleComment = async () => {
     const ok = await addComment(commentText);
     if (ok) setCommentText("");
@@ -70,22 +114,54 @@ export default function PostDetailScreen() {
     if (ok) setShowStamps(false);
   };
 
-  const handlePressStart = (commentId: string) => {
-    longPressTimer.current = window.setTimeout(() => {
-      setReactionTarget(commentId);
-      setReactionExpanded(false);
-    }, 450);
-  };
-  const handlePressEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
   const handleReaction = async (commentId: string, emoji: string) => {
     await toggleCommentReaction(commentId, emoji);
     setReactionTarget(null);
+    setReactionExpanded(false);
+  };
+
+  // リアクション済みの人一覧を表示するための長押し判定(タップだけならリアクションの付け外し)
+  const handleReactionPressStart = (commentId: string, emoji: string) => {
+    reactionLongPressFired.current = false;
+    reactionLongPressTimer.current = window.setTimeout(() => {
+      reactionLongPressFired.current = true;
+      setReactionListTarget({ id: commentId, emoji });
+    }, 450);
+  };
+  const handleReactionPressEnd = () => {
+    if (reactionLongPressTimer.current) {
+      clearTimeout(reactionLongPressTimer.current);
+      reactionLongPressTimer.current = null;
+    }
+  };
+  const handleReactionClick = (commentId: string, emoji: string) => {
+    if (reactionLongPressFired.current) {
+      reactionLongPressFired.current = false;
+      return;
+    }
+    toggleCommentReaction(commentId, emoji);
+  };
+
+  // 本文を長押し:リアクションの種類ごとに付けた人を一覧表示(タップならリアクション追加パネルを開く)
+  const handleMessagePressStart = (commentId: string) => {
+    messageLongPressFired.current = false;
+    messageLongPressTimer.current = window.setTimeout(() => {
+      messageLongPressFired.current = true;
+      setReactionGroupTarget(commentId);
+    }, 450);
+  };
+  const handleMessagePressEnd = () => {
+    if (messageLongPressTimer.current) {
+      clearTimeout(messageLongPressTimer.current);
+      messageLongPressTimer.current = null;
+    }
+  };
+  const handleMessageClick = (commentId: string) => {
+    if (messageLongPressFired.current) {
+      messageLongPressFired.current = false;
+      return;
+    }
+    setReactionTarget((prev) => (prev === commentId ? null : commentId));
     setReactionExpanded(false);
   };
 
@@ -100,6 +176,7 @@ export default function PostDetailScreen() {
         <div className="post-detail-main">
           <div className="post-detail-top">
             <span className={`board-cat ${categoryClass(post.category)}`}>{post.category}</span>
+            {post.isAnonymous && <span className="post-detail-anon-badge">匿名スレッド</span>}
             {post.resolved && <span className="post-detail-resolved">解決済み</span>}
           </div>
 
@@ -145,12 +222,21 @@ export default function PostDetailScreen() {
           <div className="post-detail-comment-list">
             {comments.map((c) => {
               const reactionEntries = Object.entries(c.reactions);
+              const isPickerOpen = reactionTarget === c.id;
               return (
-                <div key={c.id} className="post-detail-comment">
-                  <div className="post-detail-comment-avatar">{c.authorName.charAt(0)}</div>
+                <div
+                  key={c.id}
+                  className={`post-detail-comment ${isPickerOpen ? "picker-open" : ""}`}
+                >
+                  <div
+                    className="post-detail-comment-avatar"
+                    style={commentAvatarStyle(c)}
+                  >
+                    {commentAvatarLabel(c)}
+                  </div>
                   <div className="post-detail-comment-body">
                     <div className="post-detail-comment-head">
-                      <span className="post-detail-comment-author">{c.authorName}</span>
+                      <span className="post-detail-comment-author">{commentDisplayName(c)}</span>
                       <span className="post-detail-comment-date">{c.createdAt.slice(0, 10)}</span>
                       {c.isMine && (
                         <button
@@ -165,9 +251,13 @@ export default function PostDetailScreen() {
 
                     <div
                       className="post-detail-comment-pressable"
-                      onTouchStart={() => handlePressStart(c.id)}
-                      onTouchEnd={handlePressEnd}
-                      onTouchMove={handlePressEnd}
+                      onClick={() => handleMessageClick(c.id)}
+                      onTouchStart={() => handleMessagePressStart(c.id)}
+                      onTouchEnd={handleMessagePressEnd}
+                      onTouchMove={handleMessagePressEnd}
+                      onMouseDown={() => handleMessagePressStart(c.id)}
+                      onMouseUp={handleMessagePressEnd}
+                      onMouseLeave={handleMessagePressEnd}
                     >
                       {c.type === "stamp" ? (
                         isImageStamp(c.stamp) ? (
@@ -178,16 +268,6 @@ export default function PostDetailScreen() {
                       ) : (
                         <p className="post-detail-comment-text">{c.body}</p>
                       )}
-                      <button
-                        className="post-detail-react-add"
-                        onClick={() => {
-                          setReactionTarget(c.id);
-                          setReactionExpanded(false);
-                        }}
-                        aria-label="リアクション"
-                      >
-                        <i className="ti ti-mood-plus" />
-                      </button>
                     </div>
 
                     {reactionEntries.length > 0 && (
@@ -198,7 +278,13 @@ export default function PostDetailScreen() {
                             <button
                               key={emoji}
                               className={`post-detail-reaction ${mine ? "mine" : ""}`}
-                              onClick={() => toggleCommentReaction(c.id, emoji)}
+                              onClick={() => handleReactionClick(c.id, emoji)}
+                              onTouchStart={() => handleReactionPressStart(c.id, emoji)}
+                              onTouchEnd={handleReactionPressEnd}
+                              onTouchMove={handleReactionPressEnd}
+                              onMouseDown={() => handleReactionPressStart(c.id, emoji)}
+                              onMouseUp={handleReactionPressEnd}
+                              onMouseLeave={handleReactionPressEnd}
                             >
                               {isImageStamp(emoji) ? (
                                 <img src={emoji} alt="" className="post-detail-reaction-img" />
@@ -212,8 +298,11 @@ export default function PostDetailScreen() {
                       </div>
                     )}
 
-                    {reactionTarget === c.id && (
-                      <div className="post-detail-react-picker">
+                    {isPickerOpen && (
+                      <div
+                        className="post-detail-react-picker"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {!reactionExpanded ? (
                           <>
                             {quickReactions.map((emoji) => (
@@ -324,16 +413,113 @@ export default function PostDetailScreen() {
         </div>
       </div>
 
-      {/* オーバーレイ */}
-      {reactionTarget && (
-        <div
-          className="post-detail-react-overlay"
-          onClick={() => {
-            setReactionTarget(null);
-            setReactionExpanded(false);
-          }}
-        />
-      )}
+
+      {/* リアクションした人の一覧(長押しで表示) */}
+      {reactionListTarget && (() => {
+        const targetComment = comments.find((cc) => cc.id === reactionListTarget.id);
+        const ids = targetComment?.reactions[reactionListTarget.emoji] ?? [];
+        return (
+          <>
+            <div
+              className="post-detail-reaction-list-overlay"
+              onClick={() => setReactionListTarget(null)}
+            />
+            <div className="post-detail-reaction-list-modal" role="dialog" aria-label="リアクションした人">
+              <div className="post-detail-reaction-list-head">
+                <span className="post-detail-reaction-list-emoji">
+                  {isImageStamp(reactionListTarget.emoji) ? (
+                    <img src={reactionListTarget.emoji} alt="" className="post-detail-reaction-list-emoji-img" />
+                  ) : (
+                    reactionListTarget.emoji
+                  )}
+                </span>
+                <span className="post-detail-reaction-list-title">リアクションした人({ids.length})</span>
+                <button
+                  className="post-detail-reaction-list-close"
+                  onClick={() => setReactionListTarget(null)}
+                  aria-label="閉じる"
+                >
+                  <i className="ti ti-x" />
+                </button>
+              </div>
+              <div className="post-detail-reaction-list-body">
+                {ids.length === 0 ? (
+                  <p className="post-detail-reaction-list-empty">リアクションした人がいません</p>
+                ) : (
+                  ids.map((id) => {
+                    const mb = memberMap[id];
+                    return (
+                      <div key={id} className="post-detail-reaction-list-item">
+                        <span>
+                          {mb ? mb.name : "不明なメンバー"}
+                          {mb?.nickname && `（${mb.nickname}）`}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* リアクション一覧(種類ごと、本文を長押しで表示) */}
+      {reactionGroupTarget && (() => {
+        const targetComment = comments.find((cc) => cc.id === reactionGroupTarget);
+        const entries = targetComment ? Object.entries(targetComment.reactions) : [];
+        return (
+          <>
+            <div
+              className="post-detail-reaction-group-overlay"
+              onClick={() => setReactionGroupTarget(null)}
+            />
+            <div className="post-detail-reaction-group-modal" role="dialog" aria-label="リアクション一覧">
+              <div className="post-detail-reaction-group-head">
+                <span className="post-detail-reaction-group-title">リアクション一覧</span>
+                <button
+                  className="post-detail-reaction-group-close"
+                  onClick={() => setReactionGroupTarget(null)}
+                  aria-label="閉じる"
+                >
+                  <i className="ti ti-x" />
+                </button>
+              </div>
+              <div className="post-detail-reaction-group-body">
+                {entries.length === 0 ? (
+                  <p className="post-detail-reaction-group-empty">まだリアクションがありません</p>
+                ) : (
+                  entries.map(([emoji, ids]) => (
+                    <div key={emoji} className="post-detail-reaction-group-section">
+                      <div className="post-detail-reaction-group-section-head">
+                        <span className="post-detail-reaction-group-section-emoji">
+                          {isImageStamp(emoji) ? (
+                            <img src={emoji} alt="" className="post-detail-reaction-group-section-emoji-img" />
+                          ) : (
+                            emoji
+                          )}
+                        </span>
+                        <span className="post-detail-reaction-group-section-count">{ids.length}人</span>
+                      </div>
+                      <div className="post-detail-reaction-group-section-list">
+                        {ids.map((id) => {
+                          const mb = memberMap[id];
+                          return (
+                            <span key={id} className="post-detail-reaction-group-name">
+                              {mb ? mb.name : "不明なメンバー"}
+                              {mb?.nickname && `（${mb.nickname}）`}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
-}
+}

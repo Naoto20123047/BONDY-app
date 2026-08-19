@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "./duesScreen.css";
 import { useDues } from "./useDues";
+import { avatarStyle } from "../../lib/avatarColors";
 
 export default function DuesScreen() {
   const navigate = useNavigate();
@@ -117,7 +118,7 @@ export default function DuesScreen() {
         ) : (
           rows.map((r) => (
             <div key={r.memberId} className="dues-row">
-              <div className="dues-avatar">{r.name.charAt(0)}</div>
+              <div className="dues-avatar" style={avatarStyle(r.avatarColor)}>{r.name.charAt(0)}</div>
               <div className="dues-info">
                 <span className="dues-name">
                   {r.name}
@@ -139,4 +140,4 @@ export default function DuesScreen() {
       </div>
     </div>
   );
-}
+}

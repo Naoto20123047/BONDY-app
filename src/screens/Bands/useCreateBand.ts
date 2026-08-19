@@ -8,6 +8,7 @@ export interface BandMemberInput {
   memberId: string;
   name: string;
   part: string;
+  avatarColor?: string;
 }
 
 /** プロフィールのパート(配列)を、バンド内パートの初期値に変換する */
@@ -44,6 +45,7 @@ export function useCreateBand() {
               memberId: currentMember.id,
               name: currentMember.name,
               part: defaultPart(currentMember.parts),
+              avatarColor: currentMember.avatarColor,
             },
           ]);
         }
@@ -65,7 +67,7 @@ export function useCreateBand() {
     if (!m) return;
     setSelected((prev) => [
       ...prev,
-      { memberId: m.id, name: m.name, part: defaultPart(m.parts) },
+      { memberId: m.id, name: m.name, part: defaultPart(m.parts), avatarColor: m.avatarColor },
     ]);
   };
 
@@ -119,4 +121,4 @@ export function useCreateBand() {
     save,
     currentMemberId: currentMember?.id ?? "",
   } as const;
-}
+}

@@ -15,6 +15,7 @@ export interface DuesRow {
   gradeLabel: string;
   isOB: boolean;
   paid: boolean;
+  avatarColor?: string;
 }
 
 interface DuesRecord {
@@ -122,6 +123,7 @@ export function useDues() {
         gradeLabel: calcGrade(m.enrollmentYear, m.isOB),
         isOB: m.isOB,
         paid: record ? record.paid : false,
+        avatarColor: m.avatarColor,
       };
     })
     // 現役を先に、OBを後に並べる
@@ -196,4 +198,4 @@ export function useDues() {
     faculties,
     exportExcel,
   } as const;
-}
+}

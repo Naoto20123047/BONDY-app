@@ -62,6 +62,7 @@ export default function BoardScreen() {
             >
               <div className="board-card-top">
                 <span className={`board-cat ${categoryClass(p.category)}`}>{p.category}</span>
+                {p.isAnonymous && <span className="board-anon-badge">匿名</span>}
                 {p.resolved && <span className="board-resolved-badge">解決済み</span>}
               </div>
               <span className="board-card-title">{p.title}</span>
@@ -81,4 +82,4 @@ export default function BoardScreen() {
       </div>
     </div>
   );
-}
+}

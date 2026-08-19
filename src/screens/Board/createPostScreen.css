@@ -1,6 +1,20 @@
 .create-post-content {
-  padding: 36px 44px;
-  max-width: 620px;
+  padding: 48px 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.create-post-inner {
+  width: 100%;
+  max-width: 640px;
+}
+
+.create-post-card {
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-card, 16px);
+  background: var(--color-surface);
+  padding: 40px 48px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.06));
 }
 
 .create-post-back {
@@ -84,6 +98,38 @@
   border-color: var(--color-accent);
 }
 
+.create-post-anon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.create-post-anon input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.create-post-anon-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.create-post-anon-note i {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
 .create-post-actions {
   margin-top: 24px;
 }
@@ -105,7 +151,22 @@
 }
 
 @media (max-width: 768px) {
+  /* スマホ:従来のデザイン(カード化・中央寄せをしない) */
   .create-post-content {
     padding: 20px;
+    display: block;
   }
-}
+
+  .create-post-inner {
+    max-width: 620px;
+    width: auto;
+  }
+
+  .create-post-card {
+    border: none;
+    border-radius: 0;
+    background: none;
+    padding: 0;
+    box-shadow: none;
+  }
+}

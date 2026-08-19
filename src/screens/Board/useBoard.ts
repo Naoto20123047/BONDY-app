@@ -8,6 +8,7 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { useAuth } from "../../lib/AuthContext";
 import type { Post, PostCategory } from "../../Types/types";
 
 export interface PostView extends Post {
@@ -19,6 +20,7 @@ export interface PostView extends Post {
 const AUTO_DELETE_DAYS = 7;
 
 export function useBoard() {
+  const { member } = useAuth();
   const [posts, setPosts] = useState<PostView[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<PostCategory | "all">("all");
@@ -81,7 +83,11 @@ export function useBoard() {
       const views: PostView[] = rawPosts
         .map((p) => ({
           ...p,
-          authorName: nameMap[p.authorId] ?? "不明",
+          authorName: p.isAnonymous
+            ? p.authorId === member?.id
+              ? "匿名（あなた）"
+              : "匿名"
+            : nameMap[p.authorId] ?? "不明",
           commentCount: commentCountMap[p.id] ?? 0,
         }))
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -110,4 +116,4 @@ export function useBoard() {
     categoryFilter,
     setCategoryFilter,
   } as const;
-}
+}

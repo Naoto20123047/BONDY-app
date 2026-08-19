@@ -62,12 +62,10 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--color-surface-sub);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  color: var(--color-text);
   flex-shrink: 0;
 }
 
@@ -140,4 +138,4 @@
   .create-band-content {
     padding: 20px;
   }
-}
+}
