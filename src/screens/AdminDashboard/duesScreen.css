@@ -1,6 +1,17 @@
 .dues-content {
-  padding: 36px 44px;
-  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  padding: 36px 64px 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 上部:固定 */
+.dues-fixed {
+  flex-shrink: 0;
 }
 
 .dues-back {
@@ -13,14 +24,17 @@
   font-size: 13px;
   cursor: pointer;
   padding: 0;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .dues-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 0.5px solid var(--color-border);
 }
 
 .dues-title {
@@ -30,82 +44,132 @@
   margin: 0;
 }
 
-.dues-unpaid-count {
-  font-size: 13px;
-  color: var(--color-accent);
+.dues-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
 }
 
+.dues-unpaid-count {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.dues-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dues-export:hover {
+  background: var(--color-surface-sub);
+}
+
+/* 年度・検索・フィルタを1行にまとめる */
 .dues-toolbar {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
 .dues-year {
-  height: 40px;
+  height: 38px;
   padding: 0 12px;
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  color: var(--color-text);
   font-size: 14px;
+  font-family: inherit;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
-.dues-create {
+.dues-year:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.dues-year-hint {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 16px;
-  height: 40px;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .dues-search-row {
   display: flex;
+  align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .dues-search {
   flex: 1;
-  height: 40px;
+  max-width: 320px;
+  height: 38px;
   padding: 0 12px;
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  color: var(--color-text);
   font-size: 14px;
+  font-family: inherit;
   box-sizing: border-box;
 }
 
+.dues-search:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
 .dues-select {
-  width: 120px;
-  height: 40px;
+  width: 140px;
+  height: 38px;
   padding: 0 10px;
   border: 0.5px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  color: var(--color-text);
   font-size: 14px;
+  font-family: inherit;
+  flex-shrink: 0;
 }
 
+.dues-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* フィルタは検索行の右端に寄せる */
 .dues-filter {
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .dues-filter-btn {
-  padding: 7px 16px;
+  padding: 8px 18px;
   border: 0.5px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-text-secondary);
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .dues-filter-btn.active {
@@ -114,141 +178,174 @@
   color: var(--color-accent-text);
 }
 
+/* リスト:ここだけスクロール */
 .dues-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  padding-right: 6px;
 }
 
 .dues-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 4px;
+  gap: 16px;
+  padding: 14px 12px;
   border-bottom: 0.5px solid var(--color-border);
-}
-
-.dues-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--color-surface-sub);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  color: var(--color-text);
   flex-shrink: 0;
 }
 
+.dues-row:hover {
+  background: var(--color-surface);
+}
+
+.dues-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+/* 氏名とメタ情報を横並びにして、横幅を活かす */
 .dues-info {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: baseline;
+  gap: 20px;
+  min-width: 0;
 }
 
 .dues-name {
   font-size: 15px;
   color: var(--color-text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.dues-ob {
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: var(--radius);
-  background: var(--color-surface-sub);
-  color: var(--color-text-muted);
-}
-
-.dues-meta {
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.dues-toggle {
-  padding: 6px 16px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  cursor: pointer;
-  border: 0.5px solid transparent;
+  min-width: 180px;
   flex-shrink: 0;
 }
 
-.dues-toggle.paid {
-  background: var(--color-accent-bg);
-  color: var(--color-accent-text);
+.dues-ob {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+  font-size: 11px;
 }
 
-.dues-toggle.unpaid {
-  background: var(--color-surface);
-  color: var(--color-danger);
-  border-color: var(--color-danger-border);
-}
-
-.dues-empty {
+.dues-meta {
   font-size: 13px;
   color: var(--color-text-muted);
-  padding: 16px 0;
+  min-width: 0;
 }
 
-@media (max-width: 768px) {
-  .dues-content {
-    padding: 20px;
-  }
-
-  .dues-search-row {
-    flex-wrap: wrap;
-  }
-
-  .dues-search {
-    flex-basis: 100%;
-  }
-
-  .dues-select {
-    flex: 1;
-  }
-}
-.dues-year-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  margin-left: 12px;
-}
-
-.dues-year-hint i {
-  font-size: 14px;
-}
-
-.dues-header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.dues-export {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
-  border: 0.5px solid var(--color-border);
+.dues-toggle {
+  padding: 8px 20px;
   border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
+  border: 0.5px solid var(--color-border);
   font-size: 13px;
   cursor: pointer;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 96px;
 }
 
-.dues-export:hover {
+.dues-toggle.paid {
   background: var(--color-accent-bg);
   border-color: var(--color-accent);
   color: var(--color-accent-text);
 }
 
-.dues-export i {
-  font-size: 15px;
+.dues-toggle.unpaid {
+  background: #FBEDEB;
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
 }
+
+.dues-empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 24px 0;
+  text-align: center;
+}
+
+/* ===== スマホ:従来のレイアウト ===== */
+@media (max-width: 768px) {
+  .dues-content {
+    display: block;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 20px;
+    max-width: 720px;
+  }
+
+  .dues-header {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .dues-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dues-search-row {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 16px;
+  }
+
+  .dues-search,
+  .dues-select {
+    max-width: none;
+    width: 100%;
+  }
+
+  /* スマホではフィルタを独立した行に戻す */
+  .dues-filter {
+    margin-left: 0;
+    margin-bottom: 20px;
+  }
+
+  .dues-list {
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .dues-row {
+    gap: 14px;
+    padding: 14px 8px;
+  }
+
+  .dues-row:hover {
+    background: none;
+  }
+
+  /* 氏名とメタを縦積みに戻す */
+  .dues-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .dues-name {
+    min-width: 0;
+  }
+
+  .dues-toggle {
+    padding: 7px 16px;
+    min-width: 0;
+  }
+}

@@ -9,10 +9,11 @@ export interface Member {
   authMethod: "google" | "email";
   name: string;
   nickname?: string;
+  avatarColor?: string;
   faculty: string;
   studentId: string;
   enrollmentYear: number;
-  part: string;
+  parts: string[];
   role: Role;
   positions: Position[];
   isOB: boolean;
@@ -137,6 +138,7 @@ export interface Post {
   createdAt: string;
   resolved: boolean;
   resolvedAt?: string; // 解決フラグを立てた日時(自動削除の起点)
+  isAnonymous?: boolean; // 匿名掲示板として作成されたか(投稿・コメントとも表示上匿名になる)
 }
 
 export interface Comment {
@@ -168,4 +170,4 @@ export interface AppNotification {
   link: string;
   read: boolean;
   createdAt: string;
-}
+}

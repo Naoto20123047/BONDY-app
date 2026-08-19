@@ -81,3 +81,92 @@
     padding: 20px;
   }
 }
+
+.edit-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edit-part {
+  min-width: 64px;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.edit-part:hover:not(.selected) {
+  border-color: var(--color-text-muted);
+  background: var(--color-page);
+  color: var(--color-text);
+}
+
+.edit-part.selected {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.edit-note {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 10px 0 0;
+  line-height: 1.6;
+}
+
+/* アイコンの色選択 */
+.edit-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.edit-avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.edit-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.edit-color {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  padding: 0;
+  transition: transform 0.12s, border-color 0.12s;
+}
+
+.edit-color:hover {
+  transform: scale(1.08);
+}
+
+.edit-color.selected {
+  transform: scale(1.08);
+}

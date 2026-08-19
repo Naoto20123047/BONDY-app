@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import type { Member } from "../../Types/types";
 
 interface AdminSummary {
   activeMembers: number;
@@ -27,11 +28,15 @@ export function useAdmin() {
   useEffect(() => {
     const fetchSummary = async () => {
       try {
-        // 在籍中メンバー数
+        // 在籍中メンバー
         const memSnap = await getDocs(
           query(collection(db, "members"), where("status", "==", "active"))
         );
-        const activeMembers = memSnap.size;
+        const members: Member[] = memSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Member, "id">),
+        }));
+        const activeMembers = members.length;
 
         // 保留中のロール変更申請数
         const roleSnap = await getDocs(
@@ -47,12 +52,21 @@ export function useAdmin() {
         }).length;
 
         // 今年度の未納者数
+        // 会費は「レコードが無い = 未納」として扱う設計のため、
+        // 納入済みの memberId を集めて、現役メンバーから引く
         const cy = currentFiscalYear();
         const duesSnap = await getDocs(
           query(collection(db, "dues"), where("fiscalYear", "==", cy))
         );
-        const unpaidDues = duesSnap.docs.filter(
-          (d) => (d.data() as { paid: boolean }).paid === false
+        const paidMemberIds = new Set<string>();
+        duesSnap.docs.forEach((d) => {
+          const data = d.data() as { memberId: string; paid: boolean };
+          if (data.paid) paidMemberIds.add(data.memberId);
+        });
+
+        // OBは会費の対象外なので除外する
+        const unpaidDues = members.filter(
+          (m) => !m.isOB && !paidMemberIds.has(m.id)
         ).length;
 
         setSummary({

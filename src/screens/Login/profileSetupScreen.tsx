@@ -3,6 +3,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
+import { PART_OPTIONS, togglePart } from "../../lib/parts";
 import "./profileSetupScreen.css";
 
 // 開志専門職大学の学部
@@ -12,17 +13,27 @@ export default function ProfileSetupScreen() {
   const { firebaseUser, refreshMember } = useAuth();
 
   const [name, setName] = useState("");
+  const [nickname, setNickname] = useState("");
   const [faculty, setFaculty] = useState("");
   const [studentId, setStudentId] = useState("");
   const [enrollmentYear, setEnrollmentYear] = useState("");
-  const [part, setPart] = useState("");
+  const [parts, setParts] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // パートの選択をトグル(「なし」は他と排他)
+  const toggle = (part: string) => {
+    setParts((prev) => togglePart(prev, part));
+  };
+
   const handleSave = async () => {
     setError(null);
-    if (!name.trim() || !faculty || !studentId.trim() || !enrollmentYear || !part.trim()) {
-      setError("すべての項目を入力してください。");
+    if (!name.trim() || !faculty || !studentId.trim() || !enrollmentYear) {
+      setError("すべての必須項目を入力してください。");
+      return;
+    }
+    if (parts.length === 0) {
+      setError("パートを選択してください。担当がない場合は「なし」を選んでください。");
       return;
     }
     // 学籍番号は8桁の数字
@@ -47,10 +58,11 @@ export default function ProfileSetupScreen() {
         email: firebaseUser.email ?? "",
         authMethod: "email",
         name: name.trim(),
+        nickname: nickname.trim(),
         faculty,
         studentId: studentId.trim(),
         enrollmentYear: year,
-        part: part.trim(),
+        parts,
         role: "一般メンバー",
         positions: [],
         isOB: false,
@@ -84,6 +96,21 @@ export default function ProfileSetupScreen() {
             onChange={(e) => setName(e.target.value)}
             placeholder="山田太郎"
           />
+        </div>
+
+        <div className="setup-field">
+          <label className="setup-label">
+            ニックネーム
+            <span className="setup-optional">任意</span>
+          </label>
+          <input
+            className="setup-input"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="たろ"
+            maxLength={20}
+          />
+          <p className="setup-note">名簿では「氏名(ニックネーム)」の形で表示されます</p>
         </div>
 
         <div className="setup-field">
@@ -124,13 +151,25 @@ export default function ProfileSetupScreen() {
         </div>
 
         <div className="setup-field">
-          <label className="setup-label">パート</label>
-          <input
-            className="setup-input"
-            value={part}
-            onChange={(e) => setPart(e.target.value)}
-            placeholder="Vo/Gt"
-          />
+          <label className="setup-label">
+            パート
+            <span className="setup-optional multi">複数選択可</span>
+          </label>
+          <div className="setup-parts">
+            {PART_OPTIONS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={`setup-part ${parts.includes(p) ? "selected" : ""}`}
+                onClick={() => toggle(p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <p className="setup-note">
+            担当が複数ある場合は、すべて選択してください
+          </p>
         </div>
 
         {error && <p className="setup-error">{error}</p>}

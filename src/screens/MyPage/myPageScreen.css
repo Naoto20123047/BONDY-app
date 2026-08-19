@@ -23,40 +23,48 @@
   min-width: 0;
 }
 
+/* ===== 左:プロフィール ===== */
 .mypage-head {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 18px;
+  margin-bottom: 26px;
 }
 
+/* 色は avatarStyle() でインライン指定する */
 .mypage-avatar {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: var(--color-accent-bg);
-  color: var(--color-accent-text);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 500;
   flex-shrink: 0;
 }
 
 .mypage-name {
   font-weight: 500;
-  font-size: 20px;
+  font-size: 22px;
   color: var(--color-text);
   margin: 0;
+}
+
+.mypage-nickname {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  margin-left: 2px;
 }
 
 .mypage-sub {
   font-size: 14px;
   color: var(--color-text-secondary);
-  margin: 2px 0 0;
+  margin: 3px 0 0;
 }
 
+/* 統計カード */
 .mypage-stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -66,8 +74,10 @@
 
 .mypage-stat {
   background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  padding: 16px 18px;
+  padding: 20px 22px;
+  box-shadow: var(--shadow-sm);
 }
 
 .mypage-stat-label {
@@ -77,20 +87,20 @@
 }
 
 .mypage-stat-value {
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 500;
   color: var(--color-text);
   margin: 0;
 }
 
-/* 基本情報(PCのみ) */
+/* 詳細プロフィール */
 .mypage-profile {
   margin-bottom: 28px;
 }
 
 .mypage-profile-label {
-  font-size: 14px;
-  color: var(--color-text-secondary);
+  font-size: 13px;
+  color: var(--color-text-muted);
   margin: 0 0 12px;
 }
 
@@ -122,31 +132,72 @@
 }
 
 .mypage-info-email {
-  font-size: 13px;
-  color: var(--color-text-secondary);
+  font-size: 13px !important;
+  color: var(--color-text-secondary) !important;
 }
 
 .mypage-info-none {
   color: var(--color-text-muted);
 }
 
-/* 右カラム:セクション間を広く */
+.mypage-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mypage-part-tag {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+  font-size: 12px;
+}
+
+.mypage-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mypage-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.mypage-action.danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+/* ===== 右:一覧 ===== */
 .mypage-section {
-  margin-bottom: 56px;
+  margin-bottom: 44px;
+}
+
+.mypage-section:last-child {
+  margin-bottom: 0;
 }
 
 .mypage-section-label {
   font-size: 15px;
   color: var(--color-text-secondary);
-  margin: 0 0 20px;
+  margin: 0 0 14px;
 }
 
-/* 右カラム:各行の高さを広く */
 .mypage-band {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 0;
+  padding: 18px 0;
   border-bottom: 0.5px solid var(--color-border);
 }
 
@@ -175,7 +226,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 22px 0;
+  padding: 18px 0;
   border-bottom: 0.5px solid var(--color-border);
 }
 
@@ -193,7 +244,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 0;
+  padding: 18px 0;
   border-bottom: 0.5px solid var(--color-border);
 }
 
@@ -212,7 +263,7 @@
   display: block;
   font-size: 13px;
   color: var(--color-text-muted);
-  margin-top: 5px;
+  margin-top: 3px;
 }
 
 .mypage-equip-due.overdue {
@@ -239,38 +290,9 @@
   font-size: 14px;
   color: var(--color-text-muted);
   margin: 0;
-  padding: 8px 0;
 }
 
-/* 操作ボタン:横並び */
-.mypage-actions {
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.mypage-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-  padding: 11px 16px;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.mypage-action.danger {
-  color: var(--color-danger);
-  border-color: var(--color-danger-border);
-}
-
-/* クレジット(PC:右下固定) */
+/* ===== クレジット(右下固定) ===== */
 .mypage-credit {
   position: fixed;
   right: 28px;
@@ -307,79 +329,23 @@
   margin: 0;
 }
 
-/* ===== スマホ:元のデザイン ===== */
 @media (max-width: 768px) {
   .mypage-content {
-    padding: 20px;
+    padding: 20px 20px 40px;
     max-width: 560px;
   }
 
-  .mypage-title {
-    margin: 0 0 24px;
-  }
-
   .mypage-columns {
-    display: block;
-  }
-
-  .mypage-profile {
-    display: none;
+    grid-template-columns: 1fr;
+    gap: 36px;
   }
 
   .mypage-section {
-    margin-bottom: 28px;
+    margin-bottom: 32px;
   }
 
-  .mypage-section-label {
-    font-size: 14px;
-    margin: 0 0 12px;
-  }
-
-  .mypage-band,
-  .mypage-form,
-  .mypage-equip {
-    padding: 12px 0;
-  }
-
-  .mypage-band-name,
-  .mypage-form-title,
-  .mypage-equip-name {
-    font-size: 15px;
-  }
-
-  .mypage-band-status {
-    font-size: 12px;
-  }
-
-  .mypage-form-date,
-  .mypage-equip-reported {
-    font-size: 13px;
-  }
-
-  .mypage-equip-due {
-    font-size: 12px;
-    margin-top: 3px;
-  }
-
-  .mypage-band-leave,
-  .mypage-equip-return {
-    padding: 6px 14px;
-  }
-
-  .mypage-empty {
-    font-size: 13px;
-    padding: 0;
-  }
-
-  .mypage-actions {
-    flex-direction: column;
-    max-width: none;
-    gap: 10px;
-  }
-
-  .mypage-action {
-    justify-content: flex-start;
-    flex: none;
+  .mypage-info-row dt {
+    width: 76px;
   }
 
   .mypage-credit {

@@ -3,6 +3,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import type { Member } from "../../Types/types";
 import { calcGrade } from "../../lib/grade";
+import { PART_OPTIONS } from "../../lib/parts";
 
 export function useRoster() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -42,11 +43,15 @@ export function useRoster() {
     if (gradeFilter) {
       if (calcGrade(m.enrollmentYear, m.isOB) !== gradeFilter) return false;
     }
-    if (partFilter && m.part !== partFilter) return false;
+    // パートは複数持てるので「含むか」で判定する
+    if (partFilter && !(m.parts ?? []).includes(partFilter)) return false;
     return true;
   });
 
-  const parts = Array.from(new Set(members.map((m) => m.part)));
+  // 選択肢は固定の定義から。実際に誰も選んでいないものは出さない
+  const usedParts = new Set(members.flatMap((m) => m.parts ?? []));
+  const parts = PART_OPTIONS.filter((p) => usedParts.has(p));
+
   const grades = Array.from(
     new Set(members.map((m) => calcGrade(m.enrollmentYear, m.isOB)))
   );

@@ -242,10 +242,16 @@ export default function FormResultsScreen() {
               <div className="results-row">
                 <div className="results-row-head">
                   <div className="results-row-head-main">
-                    <span className="results-respondent">{row.respondentName}</span>
+                    <span className="results-respondent">
+                      {row.respondentName}
+                      {!isEvent && row.nickname && (
+                        <span className="results-nickname">（{row.nickname}）</span>
+                      )}
+                    </span>
                     {isEvent && (
                       <span className="results-submitter">
                         回答者:{row.submitterName}
+                        {row.nickname && `（${row.nickname}）`}
                       </span>
                     )}
                   </div>
@@ -258,8 +264,13 @@ export default function FormResultsScreen() {
                       <div className="results-meta-item">
                         <span className="results-meta-label">送信者</span>
                         <span className="results-meta-value">
-                          {row.submitterName}（{row.studentId}）
+                          {row.submitterName}
+                          {row.nickname && `（${row.nickname}）`}
                         </span>
+                      </div>
+                      <div className="results-meta-item">
+                        <span className="results-meta-label">学籍番号</span>
+                        <span className="results-meta-value">{row.studentId}</span>
                       </div>
                       <div className="results-meta-item">
                         <span className="results-meta-label">メンバー</span>
@@ -293,7 +304,7 @@ export default function FormResultsScreen() {
                       </div>
                       <div className="results-meta-item">
                         <span className="results-meta-label">パート</span>
-                        <span className="results-meta-value">{row.part}</span>
+                        <span className="results-meta-value">{row.parts}</span>
                       </div>
                       <div className="results-meta-item">
                         <span className="results-meta-label">所属バンド</span>

@@ -4,6 +4,7 @@ import "./memberDetailScreen.css";
 import { useMemberDetail, assignablePositions } from "./useMemberDetail";
 import { useAuth } from "../../lib/AuthContext";
 import { calcGrade } from "../../lib/grade";
+import { avatarStyle } from "../../lib/avatarColors";
 import type { Position } from "../../Types/types";
 
 interface MemberDetailProps {
@@ -42,10 +43,10 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
     );
   }
 
-  // 自分自身を見ているか
   const isSelf = currentMember?.id === member.id;
-  // ログイン中の自分がサークル長か(降格申請の権限判定)
   const iAmLeader = currentMember?.positions.includes("サークル長") ?? false;
+  const memberParts = member.parts ?? [];
+  const hasActions = isOfficer && !isSelf;
 
   return (
     <div className="detail-content">
@@ -53,99 +54,155 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
         <i className="ti ti-arrow-left" /> 名簿に戻る
       </button>
 
-      <div className="detail-head">
-        <div className="detail-avatar">{member.name.charAt(0)}</div>
-        <div>
-          <p className="detail-name">
+      {/* プロフィールヘッダー(横並び) */}
+      <header className="detail-hero">
+        <div className="detail-avatar" style={avatarStyle(member.avatarColor)}>
+          {member.name.charAt(0)}
+        </div>
+
+        <div className="detail-identity">
+          <h1 className="detail-name">
             {member.name}
             {member.nickname && <span className="detail-nickname">（{member.nickname}）</span>}
-          </p>
+          </h1>
           <p className="detail-sub">
-            {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}
+            {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}・{member.studentId}
           </p>
+          <div className="detail-tags">
+            {member.isOB && <span className="detail-tag ob">OB・OG</span>}
+            {member.positions.map((p) => (
+              <span key={p} className="detail-tag position">{p}</span>
+            ))}
+            {memberParts.map((p) => (
+              <span key={p} className="detail-tag part">{p}</span>
+            ))}
+          </div>
         </div>
-      </div>
+      </header>
 
-      {member.positions.length > 0 && (
-        <div className="detail-badges">
-          {member.positions.map((p) => (
-            <span key={p} className="detail-badge">{p}</span>
-          ))}
-        </div>
-      )}
-
-      <div className="detail-fields">
-        <div className="detail-field">
-          <span className="detail-field-label">学籍番号</span>
-          <span className="detail-field-value">{member.studentId}</span>
-        </div>
-        <div className="detail-field">
-          <span className="detail-field-label">パート</span>
-          <span className="detail-field-value">{member.part}</span>
-        </div>
-        <div className="detail-field">
-          <span className="detail-field-label">メール</span>
-          <span className="detail-field-value">{member.email}</span>
-        </div>
-        <div className="detail-field">
-          <span className="detail-field-label">権限</span>
-          <span className="detail-field-value">{member.role}</span>
-        </div>
-      </div>
-
-      {/* 権限・役職の管理(幹部が、自分以外・非OBを見ているときのみ) */}
-      {isOfficer && !member.isOB && !isSelf && (
-        <div className="detail-manage">
-          <p className="detail-manage-label">権限・役職の管理</p>
-
-          {member.role === "一般メンバー" && (
-            <button className="detail-manage-btn" onClick={promoteToOfficer}>
-              <i className="ti ti-arrow-up" /> 幹部に昇格(即時)
-            </button>
-          )}
-
-          {/* 降格申請はサークル長のみ */}
-          {isOfficerMember && iAmLeader && (
-            <button className="detail-manage-btn" onClick={proposeDismissOfficer}>
-              <i className="ti ti-arrow-down" /> 幹部からの降格を申請
-            </button>
-          )}
-
-          {isOfficerMember && (
-            <div className="detail-assign">
-              <select
-                className="detail-assign-select"
-                value={selectedPosition}
-                onChange={(e) => setSelectedPosition(e.target.value as Position)}
-              >
-                {assignablePositions.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-              <button
-                className="detail-assign-btn"
-                onClick={() => proposeAssignPosition(selectedPosition)}
-              >
-                役職を付与申請
-              </button>
+      <div className={`detail-columns ${hasActions ? "" : "single"}`}>
+        {/* 左:基本情報 */}
+        <section className="detail-section">
+          <h2 className="detail-section-title">基本情報</h2>
+          <dl className="detail-fields">
+            <div className="detail-field">
+              <dt>学籍番号</dt>
+              <dd>{member.studentId}</dd>
             </div>
-          )}
-        </div>
-      )}
+            <div className="detail-field">
+              <dt>学部</dt>
+              <dd>{member.faculty}</dd>
+            </div>
+            <div className="detail-field">
+              <dt>入学年度</dt>
+              <dd>{member.enrollmentYear}年度</dd>
+            </div>
+            <div className="detail-field">
+              <dt>パート</dt>
+              <dd>
+                {memberParts.length === 0 ? (
+                  <span className="detail-none">未設定</span>
+                ) : (
+                  memberParts.join("・")
+                )}
+              </dd>
+            </div>
+            <div className="detail-field">
+              <dt>メール</dt>
+              <dd className="detail-email">{member.email}</dd>
+            </div>
+            <div className="detail-field">
+              <dt>権限</dt>
+              <dd>{member.role}</dd>
+            </div>
+            <div className="detail-field">
+              <dt>役職</dt>
+              <dd>
+                {member.positions.length === 0 ? (
+                  <span className="detail-none">なし</span>
+                ) : (
+                  member.positions.join("・")
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
 
-      {/* OB登録・退会(幹部が、自分以外を見ているときのみ) */}
-      {isOfficer && !isSelf && (
-        <div className="detail-actions">
-          {!member.isOB && (
-            <button className="detail-action" onClick={registerOB}>
-              <i className="ti ti-user-check" /> OB登録
-            </button>
-          )}
-          <button className="detail-action danger" onClick={withdrawMember}>
-            <i className="ti ti-user-x" /> 退会処理
-          </button>
-        </div>
-      )}
+        {/* 右:管理操作 */}
+        {hasActions && (
+          <section className="detail-section">
+            <h2 className="detail-section-title">管理</h2>
+
+            {/* 権限・役職(OBは対象外) */}
+            {!member.isOB && (
+              <div className="detail-manage-block">
+                <p className="detail-block-label">権限・役職</p>
+
+                {member.role === "一般メンバー" && (
+                  <button className="detail-btn" onClick={promoteToOfficer}>
+                    <i className="ti ti-arrow-up" />
+                    幹部に昇格
+                    <span className="detail-btn-note">即時反映</span>
+                  </button>
+                )}
+
+                {isOfficerMember && iAmLeader && (
+                  <button className="detail-btn" onClick={proposeDismissOfficer}>
+                    <i className="ti ti-arrow-down" />
+                    降格を申請
+                    <span className="detail-btn-note">3名の承認</span>
+                  </button>
+                )}
+
+                {isOfficerMember && (
+                  <div className="detail-assign">
+                    <select
+                      className="detail-assign-select"
+                      value={selectedPosition}
+                      onChange={(e) => setSelectedPosition(e.target.value as Position)}
+                    >
+                      {assignablePositions.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="detail-assign-btn"
+                      onClick={() => proposeAssignPosition(selectedPosition)}
+                    >
+                      付与申請
+                    </button>
+                  </div>
+                )}
+
+                {isOfficerMember && !iAmLeader && (
+                  <p className="detail-note">降格の発議はサークル長のみ可能です</p>
+                )}
+              </div>
+            )}
+
+            {/* 在籍 */}
+            <div className="detail-manage-block">
+              <p className="detail-block-label">在籍</p>
+
+              {!member.isOB && (
+                <button className="detail-btn" onClick={registerOB}>
+                  <i className="ti ti-user-check" />
+                  OB登録
+                </button>
+              )}
+
+              <button className="detail-btn danger" onClick={withdrawMember}>
+                <i className="ti ti-user-x" />
+                退会処理
+              </button>
+
+              <p className="detail-note">
+                退会してもデータは残ります。完全な削除はユーザー履歴から
+              </p>
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

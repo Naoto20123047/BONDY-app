@@ -2,6 +2,8 @@ import { useNavigate } from "react-router-dom";
 import "./myPageScreen.css";
 import { useMyPage } from "./useMyPage";
 import { calcGrade } from "../../lib/grade";
+import { formatParts } from "../../lib/parts";
+import { avatarStyle } from "../../lib/avatarColors";
 
 export default function MyPageScreen() {
   const navigate = useNavigate();
@@ -12,6 +14,8 @@ export default function MyPageScreen() {
     return <div className="mypage-content">読み込み中...</div>;
   }
 
+  const memberParts = member.parts ?? [];
+
   return (
     <div className="mypage-content">
       <h2 className="mypage-title">マイページ</h2>
@@ -20,11 +24,19 @@ export default function MyPageScreen() {
         {/* 左カラム */}
         <div className="mypage-col-left">
           <div className="mypage-head">
-            <div className="mypage-avatar">{member.name.charAt(0)}</div>
+            <div className="mypage-avatar" style={avatarStyle(member.avatarColor)}>
+              {member.name.charAt(0)}
+            </div>
             <div>
-              <p className="mypage-name">{member.name}</p>
+              <p className="mypage-name">
+                {member.name}
+                {member.nickname && (
+                  <span className="mypage-nickname">（{member.nickname}）</span>
+                )}
+              </p>
               <p className="mypage-sub">
-                {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}・{member.part}
+                {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}・
+                {formatParts(member.parts)}
               </p>
             </div>
           </div>
@@ -45,6 +57,16 @@ export default function MyPageScreen() {
             <p className="mypage-profile-label">基本情報</p>
             <dl className="mypage-info">
               <div className="mypage-info-row">
+                <dt>ニックネーム</dt>
+                <dd>
+                  {member.nickname ? (
+                    member.nickname
+                  ) : (
+                    <span className="mypage-info-none">未設定</span>
+                  )}
+                </dd>
+              </div>
+              <div className="mypage-info-row">
                 <dt>学部</dt>
                 <dd>{member.faculty}</dd>
               </div>
@@ -58,7 +80,17 @@ export default function MyPageScreen() {
               </div>
               <div className="mypage-info-row">
                 <dt>パート</dt>
-                <dd>{member.part}</dd>
+                <dd>
+                  {memberParts.length === 0 ? (
+                    <span className="mypage-info-none">未設定</span>
+                  ) : (
+                    <span className="mypage-tags">
+                      {memberParts.map((p) => (
+                        <span key={p} className="mypage-part-tag">{p}</span>
+                      ))}
+                    </span>
+                  )}
+                </dd>
               </div>
               <div className="mypage-info-row">
                 <dt>メール</dt>
@@ -157,7 +189,7 @@ export default function MyPageScreen() {
 
       {/* クレジット */}
       <div className="mypage-credit">
-        <p className="mypage-credit-app">BONDYアプリ　v1.1.0</p>
+        <p className="mypage-credit-app">BONDYアプリ　v1.2.0</p>
         <div className="mypage-credit-block">
           <p className="mypage-credit-role">開発</p>
           <p className="mypage-credit-name">2023年度情報学部生　吉田 直人</p>

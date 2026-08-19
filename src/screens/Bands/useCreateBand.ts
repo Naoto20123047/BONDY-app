@@ -8,7 +8,16 @@ export interface BandMemberInput {
   memberId: string;
   name: string;
   part: string;
+  avatarColor?: string;
 }
+
+/** プロフィールのパート(配列)を、バンド内パートの初期値に変換する */
+const defaultPart = (parts: string[] | undefined): string => {
+  if (!parts || parts.length === 0) return "";
+  // 「なし」しか選んでいない場合は空にする
+  const valid = parts.filter((p) => p !== "なし");
+  return valid.join("・");
+};
 
 export function useCreateBand() {
   const { member: currentMember } = useAuth();
@@ -32,7 +41,12 @@ export function useCreateBand() {
         // 申請者自身を初期メンバーに追加
         if (currentMember) {
           setSelected([
-            { memberId: currentMember.id, name: currentMember.name, part: currentMember.part },
+            {
+              memberId: currentMember.id,
+              name: currentMember.name,
+              part: defaultPart(currentMember.parts),
+              avatarColor: currentMember.avatarColor,
+            },
           ]);
         }
       } catch (e) {
@@ -51,7 +65,10 @@ export function useCreateBand() {
   const addMember = (memberId: string) => {
     const m = allMembers.find((mm) => mm.id === memberId);
     if (!m) return;
-    setSelected((prev) => [...prev, { memberId: m.id, name: m.name, part: m.part }]);
+    setSelected((prev) => [
+      ...prev,
+      { memberId: m.id, name: m.name, part: defaultPart(m.parts), avatarColor: m.avatarColor },
+    ]);
   };
 
   const removeMember = (memberId: string) => {
@@ -79,7 +96,7 @@ export function useCreateBand() {
       // bandsコレクションに status「申請中」で新規作成
       await addDoc(collection(db, "bands"), {
         name: name.trim(),
-        members: selected.map((s) => ({ memberId: s.memberId, part: s.part })),
+        members: selected.map((s) => ({ memberId: s.memberId, part: s.part.trim() })),
         status: "申請中",
       });
       onDone();
@@ -104,4 +121,4 @@ export function useCreateBand() {
     save,
     currentMemberId: currentMember?.id ?? "",
   } as const;
-}
+}
