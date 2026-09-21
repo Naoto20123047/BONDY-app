@@ -6,8 +6,15 @@ import { useAuth } from "../../lib/AuthContext";
 
 const isImageStamp = (s: string) => s.startsWith("/");
 
+// スマホ・タブレット(タッチ主体の端末)かどうか。
+// これらの端末には Shift キーがないため、Enter は常に改行として扱う。
+const isTouchDevice = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(pointer: coarse)").matches;
+
 export default function ChatScreen() {
-  const { messages, loading, sending, sendMessage, sendStamp, toggleReaction } = useChat();
+  const { messages, loading, sending, sendMessage, sendStamp, deleteMessage, toggleReaction } =
+    useChat();
   const { member, memberMap } = useAuth();
   const [text, setText] = useState("");
   const [showStamps, setShowStamps] = useState(false);
@@ -15,12 +22,23 @@ export default function ChatScreen() {
   const [reactionExpanded, setReactionExpanded] = useState(false);
   const [reactionListTarget, setReactionListTarget] = useState<{ id: string; emoji: string } | null>(null);
   const [reactionGroupTarget, setReactionGroupTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevCount = useRef(0);
   const reactionLongPressTimer = useRef<number | null>(null);
   const reactionLongPressFired = useRef(false);
   const messageLongPressTimer = useRef<number | null>(null);
   const messageLongPressFired = useRef(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // 入力量に応じて入力欄の高さを自動調整する(最大 120px は CSS 側で制御)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
 
   useEffect(() => {
     if (messages.length > prevCount.current && !reactionTarget) {
@@ -56,8 +74,18 @@ export default function ChatScreen() {
     if (ok) setShowStamps(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter") return;
+
+    // 日本語入力の変換確定 Enter では送信しない
+    const native = e.nativeEvent as KeyboardEvent;
+    if (native.isComposing || native.keyCode === 229) return;
+
+    // スマホ・タブレットでは Enter は常に改行(送信は送信ボタンから)
+    if (isTouchDevice()) return;
+
+    // PC では Enter 送信 / Shift+Enter 改行
+    if (!e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -127,6 +155,24 @@ export default function ChatScreen() {
     setReactionExpanded(false);
   };
 
+  // 取り消しは確認モーダルを挟む。一度取り消すと元に戻せないため
+  const handleDeleteRequest = (messageId: string) => {
+    setReactionTarget(null);
+    setReactionExpanded(false);
+    setDeleteTarget(messageId);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteMessage(deleteTarget);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
   return (
     <div className="chat-content">
       <div className="chat-header">
@@ -143,7 +189,8 @@ export default function ChatScreen() {
             const showDate =
               i === 0 || formatDate(messages[i - 1].createdAt) !== formatDate(m.createdAt);
             const reactionEntries = Object.entries(m.reactions);
-            const isPickerOpen = reactionTarget === m.id;
+            // 取り消し済みのメッセージは操作対象にしない(リアクションも取り消しも不可)
+            const isPickerOpen = reactionTarget === m.id && !m.deleted;
             // 最後の2件はパネルを上向きに出す
             const isNearBottom = i >= messages.length - 2;
             return (
@@ -161,16 +208,21 @@ export default function ChatScreen() {
                   {!m.isMine && <span className="chat-msg-sender">{m.senderName}</span>}
                   <div className="chat-msg-row">
                     <div
-                      className="chat-msg-pressable"
-                      onClick={() => handleMessageClick(m.id)}
-                      onTouchStart={() => handleMessagePressStart(m.id)}
-                      onTouchEnd={handleMessagePressEnd}
-                      onTouchMove={handleMessagePressEnd}
-                      onMouseDown={() => handleMessagePressStart(m.id)}
-                      onMouseUp={handleMessagePressEnd}
-                      onMouseLeave={handleMessagePressEnd}
+                      className={`chat-msg-pressable ${m.deleted ? "deleted" : ""}`}
+                      onClick={m.deleted ? undefined : () => handleMessageClick(m.id)}
+                      onTouchStart={m.deleted ? undefined : () => handleMessagePressStart(m.id)}
+                      onTouchEnd={m.deleted ? undefined : handleMessagePressEnd}
+                      onTouchMove={m.deleted ? undefined : handleMessagePressEnd}
+                      onMouseDown={m.deleted ? undefined : () => handleMessagePressStart(m.id)}
+                      onMouseUp={m.deleted ? undefined : handleMessagePressEnd}
+                      onMouseLeave={m.deleted ? undefined : handleMessagePressEnd}
                     >
-                      {m.type === "stamp" ? (
+                      {m.deleted ? (
+                        <div className="chat-bubble deleted">
+                          <i className="ti ti-ban" />
+                          <span>このメッセージは取り消されました</span>
+                        </div>
+                      ) : m.type === "stamp" ? (
                         isImageStamp(m.stamp) ? (
                           <img className="chat-stamp-img" src={m.stamp} alt="スタンプ" />
                         ) : (
@@ -183,7 +235,7 @@ export default function ChatScreen() {
                     <span className="chat-msg-time">{formatTime(m.createdAt)}</span>
                   </div>
 
-                  {reactionEntries.length > 0 && (
+                  {reactionEntries.length > 0 && !m.deleted && (
                     <div className="chat-reactions">
                       {reactionEntries.map(([emoji, ids]) => {
                         const mine = member ? ids.includes(member.id) : false;
@@ -234,6 +286,16 @@ export default function ChatScreen() {
                           >
                             <i className="ti ti-plus" />
                           </button>
+                          {/* 自分のメッセージのみ取り消せる */}
+                          {m.isMine && (
+                            <button
+                              className="chat-msg-delete"
+                              onClick={() => handleDeleteRequest(m.id)}
+                              aria-label="取り消す"
+                            >
+                              <i className="ti ti-trash" />
+                            </button>
+                          )}
                         </>
                       ) : (
                         <div className="chat-react-full">
@@ -307,6 +369,7 @@ export default function ChatScreen() {
           <i className="ti ti-mood-smile" />
         </button>
         <textarea
+          ref={inputRef}
           className="chat-input"
           placeholder="メッセージを入力"
           value={text}
@@ -323,6 +386,39 @@ export default function ChatScreen() {
           <i className="ti ti-send" />
         </button>
       </div>
+
+      {/* メッセージ取り消しの確認 */}
+      {deleteTarget && (
+        <>
+          <div
+            className="chat-reaction-list-overlay"
+            onClick={() => !deleting && setDeleteTarget(null)}
+          />
+          <div className="chat-confirm-modal" role="dialog" aria-label="メッセージの取り消し">
+            <p className="chat-confirm-title">このメッセージを取り消しますか?</p>
+            <p className="chat-confirm-note">
+              本文は完全に削除され、元に戻せません。「取り消されました」という表示と、
+              誰がいつ送信したかの記録はチャットに残ります。
+            </p>
+            <div className="chat-confirm-actions">
+              <button
+                className="chat-confirm-cancel"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                やめる
+              </button>
+              <button
+                className="chat-confirm-delete"
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+              >
+                {deleting ? "取り消し中..." : "取り消す"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* リアクションした人の一覧(長押しで表示) */}
       {reactionListTarget && (() => {

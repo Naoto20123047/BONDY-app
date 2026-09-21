@@ -149,6 +149,7 @@
   font-family: inherit;
   line-height: 1.4;
   max-height: 120px;
+  overflow-y: auto;
   box-sizing: border-box;
 }
 
@@ -625,4 +626,116 @@
   font-size: 13px;
   color: var(--color-text-secondary);
   text-align: center;
-}
+}
+/* ------------------------------------------------------------------ */
+/* メッセージの取り消し(v1.3.1)                                       */
+/* ------------------------------------------------------------------ */
+
+/* 取り消し済みの吹き出し。枠線だけの控えめな見た目にして、
+   通常のメッセージと一目で区別できるようにする */
+.chat-bubble.deleted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.chat-msg.mine .chat-bubble.deleted,
+.chat-msg.other .chat-bubble.deleted {
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.chat-msg-pressable.deleted {
+  cursor: default;
+}
+
+.chat-msg-pressable.deleted:hover .chat-bubble {
+  filter: none;
+}
+
+/* リアクションパネル内の取り消しボタン */
+.chat-msg-delete {
+  width: 34px;
+  height: 34px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface-sub);
+  color: var(--color-danger);
+  cursor: pointer;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-msg-delete:hover {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+/* 取り消し確認モーダル */
+.chat-confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, calc(100vw - 40px));
+  padding: 20px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  z-index: 301;
+  animation: chat-modal-fade 0.18s ease;
+  box-sizing: border-box;
+}
+
+.chat-confirm-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.chat-confirm-note {
+  margin: 0 0 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.chat-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-confirm-actions button {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.chat-confirm-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.chat-confirm-cancel {
+  border: 0.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.chat-confirm-delete {
+  border: none;
+  background: var(--color-danger);
+  color: #fff;
+}
