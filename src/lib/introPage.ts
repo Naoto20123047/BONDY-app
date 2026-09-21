@@ -18,17 +18,7 @@
 
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import type {
-  IntroPage,
-  IntroSection,
-  IntroBlock,
-  IntroBlockType,
-  IntroImage,
-  IntroCard,
-  IntroStat,
-  IntroTone,
-  IntroEffect,
-} from "../Types/types";
+import type { IntroBlock, IntroBlockType, IntroCard, IntroEffect, IntroImage, IntroPage, IntroSection, IntroStat, IntroTone } from "../Types/types";
 
 /** Firestore 上の置き場所。将来ほかのページを足せるようコレクションにしてある */
 const INTRO_DOC_ID = "intro";
@@ -256,11 +246,22 @@ function migrateSections(sections: IntroSection[]): IntroBlock[] {
 /**
  * 紹介ページを取得する。
  * 未作成・読み取り失敗の場合は既定の内容を返すので、画面が空になることはない。
+ *
+ * **失敗しても画面は出す。** この画面は加入を検討している人が最初に見るものなので、
+ * エラー表示で迎えるより、既定の内容を出したほうがよい。
+ *
+ * ただし黙って既定値に落ちると、設定ミスが「編集が反映されない」という形でしか
+ * 表に出ず、原因にたどり着けない。実際に見学者向けの読み取りが
+ * ルールで弾かれていたことがあるので、原因が分かる形でログに残す。
  */
 export async function loadIntroPage(): Promise<IntroPage> {
   try {
     const snapshot = await getDoc(doc(db, "pages", INTRO_DOC_ID));
-    if (!snapshot.exists()) return DEFAULT_INTRO;
+    if (!snapshot.exists()) {
+      // ドキュメントがまだ無いだけ。幹部が一度保存すれば作られる
+      console.info("紹介ページは未保存のため、既定の内容を表示します");
+      return DEFAULT_INTRO;
+    }
 
     const data = snapshot.data() as Record<string, unknown>;
 
@@ -283,9 +284,31 @@ export async function loadIntroPage(): Promise<IntroPage> {
       updatedBy: typeof data.updatedBy === "string" ? data.updatedBy : undefined,
     };
   } catch (e) {
-    console.error("紹介ページの取得に失敗しました", e);
+    if (isPermissionDenied(e)) {
+      // 見学者(Member ドキュメントを持たない人)が読めていない状態。
+      // firestore.rules の pages は allow read: if isSignedIn() である必要がある。
+      // isActive() になっていると、在籍メンバーには見えて見学者にだけ既定値が出る。
+      console.error(
+        "紹介ページを読む権限がありません。" +
+          "firestore.rules の pages の読み取り条件(isSignedIn)と、" +
+          "それがデプロイ済みかを確認してください。",
+        e
+      );
+    } else {
+      console.error("紹介ページの取得に失敗しました", e);
+    }
     return DEFAULT_INTRO;
   }
+}
+
+/** Firestore のルールで弾かれたか(通信エラーなどと区別する) */
+function isPermissionDenied(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code?: unknown }).code === "permission-denied"
+  );
 }
 
 // ---------------------------------------------------------------------------

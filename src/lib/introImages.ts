@@ -18,7 +18,7 @@
  */
 
 import { callWorker, isWorkerConfigured } from "./workerClient";
-import type { IntroPage, IntroImage } from "../Types/types";
+import type { IntroImage, IntroPage } from "../Types/types";
 
 /** 長辺の上限(px)。PCの全幅で見ても粗くならない程度 */
 const MAX_EDGE = 1600;
@@ -152,7 +152,7 @@ export async function uploadIntroImage(
 ): Promise<{ fileId: string; url: string }> {
   if (!isWorkerConfigured()) {
     throw new Error(
-      "画像のアップロード先が設定されていません。管理者に連絡してください。"
+      "画像のアップロード先が設定されていません。幹部に連絡してください。"
     );
   }
 

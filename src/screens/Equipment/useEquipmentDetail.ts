@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { getEquipmentManagerIds } from "../../lib/equipmentManager";
 import type { Equipment, EquipmentRequest } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 export interface BorrowerView {
   memberName: string;
@@ -52,11 +54,7 @@ export function useEquipmentDetail(id: string | undefined) {
           ...(d.data() as Omit<EquipmentRequest, "id">),
         }));
 
-        const memSnap = await getDocs(collection(db, "members"));
-        const nameMap: Record<string, string> = {};
-        memSnap.docs.forEach((d) => {
-          nameMap[d.id] = (d.data() as { name: string }).name;
-        });
+        const nameMap = await fetchMemberNameMap();
 
         const now = new Date();
         setLentCount(requests.reduce((sum, r) => sum + r.quantity, 0));
@@ -101,7 +99,7 @@ export function useEquipmentDetail(id: string | undefined) {
         memberId: currentMember.id,
         dueDate,
         status: "申請中",
-        requestedAt: new Date().toISOString().slice(0, 10),
+        requestedAt: todayString(),
       });
 
       // 機材担当に貸出申請の通知

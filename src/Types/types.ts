@@ -1,6 +1,54 @@
-export type Role = "管理者" | "幹部" | "一般メンバー";
+/**
+ * アプリ全体で使う型をここにまとめている。
+ *
+ * ドメインごとに `// ===== 名前 =====` で区切ってある。探すときは
+ * 区切りを目印にするか、型名で検索するのが早い。
+ * 概ね Firestore のコレクションと1対1で対応している。
+ *
+ * **1ファイルのままにしている理由**
+ * 一度ドメインごとに10ファイルへ分けたが、2〜3型で十数行のファイルが並ぶだけで、
+ * 探す手間と import の行数(48行→58行)が増えただけだった。
+ * 型が今の倍ほどに増えて、この区切りでは追えなくなってから分ければよい。
+ */
 
-export type Position = "サークル長" | "副サークル長" | "会計担当" | "機材担当" | "広報担当";
+// ===== メンバー =====
+//
+// このアプリの中心になるデータ。members コレクションに1人1件で入っている。
+
+/**
+ * 権限の区分。
+ *
+ * かつて「管理者」もあったが、**幹部と権限が完全に同一**で、
+ * 判定はどこも「幹部または管理者」の形しかなく、
+ * アプリから付与する手段も無かった(Firestore コンソールで手書きするしかなかった)。
+ * 名前だけが残って「管理者は何か特別なことができる」と誤解を生むため、
+ * v1.3.0 で廃止した。
+ *
+ * 誰も手が出せなくなったときの最後の手段は Firebase コンソールであって、
+ * アプリ内の役職ではない。引き継ぎメモ側にその旨を残すこと。
+ *
+ * 判定は lib/roles.ts にまとめてある。直接 === で比べないこと。
+ */
+export type Role = "幹部" | "一般メンバー";
+
+/**
+ * 担当。role とは別で、複数持てる。
+ * 「幹部かどうか」が権限、「何の担当か」がこちら。
+ */
+export type Position =
+  | "サークル長"
+  | "副サークル長"
+  | "会計担当"
+  | "機材担当"
+  | "広報担当";
+
+/**
+ * 在籍状態。**退会と除籍は別物として扱う。**
+ *  - active    : 在籍中
+ *  - withdrawn : 退会(本人の意思)。Auth は生きたままで、本人が再ログインすれば復帰できる
+ *  - expelled  : 除籍(幹部の判断)。Auth を無効化し、復帰は幹部操作のみ
+ */
+export type MemberStatus = "active" | "withdrawn" | "expelled";
 
 export interface Member {
   id: string;
@@ -20,12 +68,6 @@ export interface Member {
   positions: Position[];
   isOB: boolean;
   duesPaid: boolean;
-  /**
-   * 在籍状態。退会と除籍は別物として扱う。
-   *  - active    : 在籍中
-   *  - withdrawn : 退会(本人の意思)。Auth は生きたままで、本人が再ログインすれば復帰できる
-   *  - expelled  : 除籍(幹部の判断)。Auth を無効化し、復帰は幹部操作のみ
-   */
   status: MemberStatus;
   /**
    * 加入日(YYYY-MM-DD)。プロフィール登録時に記録する。
@@ -37,7 +79,33 @@ export interface Member {
   expelledAt?: string;
 }
 
-export type MemberStatus = "active" | "withdrawn" | "expelled";
+// ===== 役職変更の申請(幹部が複数人で承認する) =====
+
+export type RoleChangeType =
+  | "assign_position"
+  | "dismiss_officer"
+  | "dismiss_leader"
+  | "assign_vice_leader";
+
+/**
+ * 1人の独断で役職を動かせないようにするための仕組み。
+ * requiredApprovals 人ぶん approvals が集まって初めて成立する。
+ */
+export interface RoleChangeRequest {
+  id: string;
+  type: RoleChangeType;
+  targetMemberId: string;
+  proposedBy: string;
+  approvals: string[];
+  requiredApprovals: number;
+  status: "pending" | "approved" | "rejected";
+  position?: Position; // assign_position のとき、付与する役職
+}
+
+// ===== バンド =====
+//
+// 結成も解散も幹部の承認を通すため、status で段階を持っている。
+
 export type BandStatus = "申請中" | "承認済み" | "解散申請中" | "解散";
 
 export interface BandMember {
@@ -51,6 +119,10 @@ export interface Band {
   members: BandMember[];
   status: BandStatus;
 }
+
+// ===== フォーム(イベント参加確認・アンケート) =====
+//
+// 定義(FormDef)と回答(FormResponse)を別コレクションに分けてある。
 
 export type FormType = "イベント" | "アンケート";
 
@@ -78,10 +150,13 @@ export interface FormResponse {
   id: string;
   formId: string;
   memberId: string;
+  /** 質問ID → 回答 */
   answers: Record<string, string>;
   bandId?: string;
   submittedAt: string;
 }
+
+// ===== TODO(幹部の作業管理) =====
 
 export type TodoStatus = "未着手" | "進行中" | "完了";
 
@@ -95,22 +170,19 @@ export interface Todo {
   status: TodoStatus;
 }
 
-export type RoleChangeType = "assign_position" | "dismiss_officer" | "dismiss_leader" | "assign_vice_leader";
-
-export interface RoleChangeRequest {
-  id: string;
-  type: RoleChangeType;
-  targetMemberId: string;
-  proposedBy: string;
-  approvals: string[];
-  requiredApprovals: number;
-  status: "pending" | "approved" | "rejected";
-  position?: Position; // assign_position のとき、付与する役職
-}
-
 // ===== 機材貸出 =====
+//
+// 在庫は Equipment.totalQuantity に持ち、貸出中の数は
+// EquipmentRequest を数えて求める(在庫数を直接減らさない)。
+// 二重更新でずれるのを避けるため。
 
-export type EquipmentCategory = "スピーカー" | "アンプ" | "ミキサー" | "マイク" | "ケーブル" | "その他";
+export type EquipmentCategory =
+  | "スピーカー"
+  | "アンプ"
+  | "ミキサー"
+  | "マイク"
+  | "ケーブル"
+  | "その他";
 
 export interface Equipment {
   id: string;
@@ -121,6 +193,7 @@ export interface Equipment {
   note?: string;
 }
 
+/** 申請 → 貸出 → 返却報告 → 返却完了、の順に進む */
 export type EquipmentRequestStatus =
   | "申請中"
   | "貸出中"
@@ -143,6 +216,9 @@ export interface EquipmentRequest {
 }
 
 // ===== 掲示板 =====
+//
+// 匿名投稿は表示だけでなく通知にも影響する(lib/teamsNotify.ts を参照)。
+// authorId は匿名でも保存する。荒れたときに幹部が辿れるようにするため。
 
 export type PostCategory = "メンバー募集" | "機材" | "告知・連絡" | "その他";
 
@@ -154,7 +230,7 @@ export interface Post {
   body: string;
   createdAt: string;
   resolved: boolean;
-  resolvedAt?: string; // 解決フラグを立てた日時(自動削除の起点)
+  resolvedAt?: string;   // 解決フラグを立てた日時(自動削除の起点)
   isAnonymous?: boolean; // 匿名掲示板として作成されたか(投稿・コメントとも表示上匿名になる)
 }
 
@@ -166,10 +242,14 @@ export interface Comment {
   createdAt: string;
 }
 
-// ===== アバター画像 =====
+// ===== アイコン画像 =====
+//
+// 画像は Member に直接持たせず、別コレクションに切り出してある。
+// 名簿一覧などで在籍者全員ぶんの画像を読み込んでしまうのを防ぐため。
+// 一覧には Member.avatarThumb(小さいもの)を使い、原寸はここから読む。
+//
+// 紹介ページの写真は別の仕組み(Workers KV)なので混同しないこと。
 
-// 画像は Member に直接持たせず、別コレクションに切り出す。
-// 名簿一覧などで36名分の画像を読み込んでしまうのを防ぐため。
 export interface AvatarImage {
   id: string;      // = ownerId(1人1枚のため、上書きで差し替える)
   ownerId: string;
@@ -177,7 +257,14 @@ export interface AvatarImage {
   updatedAt: string;
 }
 
-// ===== 紹介画面(幹部がアプリから編集する) =====
+// ===== サークル紹介ページ =====
+//
+// アカウント作成直後のまだメンバーでない人と、在籍メンバーの両方に同じものを見せる。
+// 文章も写真も運用しながら変わるものなので、コードに埋め込まず Firestore(pages/intro)に置き、
+// 幹部がアプリから直接編集できるようにしている。
+//
+// ブロックを積んでページを組み立てる形式。編集画面は screens/AdminDashboard/、
+// 表示は screens/Intro/、読み書きは lib/introPage.ts にある。
 
 /**
  * v1.3.0 より前の形式。見出しと本文だけを持っていた。
@@ -226,7 +313,7 @@ export type IntroEffect =
  * 実体は Worker に付いている Cloudflare Workers KV にあり、
  * ここには画像のIDだけを持つ。表示するときに Worker から期限付きの
  * 署名URLをもらって <img> に渡す。
- * Firestore に base64 で持つアイコン画像とは別の仕組みなので注意。
+ * Firestore に base64 で持つアイコン画像(AvatarImage)とは別の仕組みなので注意。
  */
 export interface IntroImage {
   fileId: string;
@@ -256,6 +343,9 @@ export interface IntroStat {
  * 横に並べたいときは span を 6 と 6 にする、という考え方にしてある。
  * 座標(x, y)を持たせないのは、スマホでは必ず1列に積み直す必要があり、
  * PCで置いた座標がそのままでは使えないため。
+ *
+ * 種類ごとに使うフィールドが違うので、ほとんどが任意になっている。
+ * どの種類で何を使うかは各フィールドのコメントを見ること。
  */
 export interface IntroBlock {
   id: string;
@@ -293,13 +383,6 @@ export interface IntroBlock {
   height?: number;
 }
 
-/**
- * アカウント作成直後、まだメンバーになっていない人に見せる紹介ページ。
- * 在籍メンバーにもアプリ内の「サークル紹介」として同じものを出す。
- *
- * 文章も写真も運用しながら変わるものなので、コードに埋め込まず Firestore に置き、
- * 幹部がアプリから直接編集できるようにしている(pages/intro)。
- */
 export interface IntroPage {
   title: string;
   lead: string;
@@ -310,7 +393,9 @@ export interface IntroPage {
   updatedBy?: string;
 }
 
-// ===== 通知 =====
+// ===== アプリ内通知 =====
+//
+// Teams への通知とは別物。あちらは lib/teamsNotify.ts。
 
 export type NotificationType =
   | "form_published"       // フォーム配信
@@ -328,6 +413,7 @@ export interface AppNotification {
   targetMemberId: string;
   type: NotificationType;
   message: string;
+  /** 押したときの遷移先(アプリ内のパス) */
   link: string;
   read: boolean;
   createdAt: string;
@@ -379,7 +465,8 @@ export interface ArchiveItem {
    *
    * バンド詳細から「過去の演奏」を逆引きするとき、
    * これが無いとイベントを1件ずつ読みに行くことになるため複製している。
-   * イベント名や日付を直したときは、紐づく ArchiveItem 側も更新すること。
+   * **イベント名や日付を直したときは、紐づく ArchiveItem 側も更新すること。**
+   * (lib/archive.ts の updateEvent がまとめて面倒を見ている)
    */
   eventTitle: string;
   eventDate: string;

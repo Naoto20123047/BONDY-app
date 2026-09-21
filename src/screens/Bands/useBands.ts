@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { db } from "../../lib/firebase";
+import { fetchAllMembers } from "../../lib/members";
 import { calcGrade } from "../../lib/grade";
 import type { Band, Member } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 export function useBands() {
   const [bands, setBands] = useState<Band[]>([]);
@@ -23,10 +25,7 @@ export function useBands() {
         setBands(list);
 
         // メンバー情報(氏名・学籍番号・学年の解決用)
-        const memSnap = await getDocs(collection(db, "members"));
-        setMembers(
-          memSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Member, "id">) }))
-        );
+        setMembers(await fetchAllMembers());
       } catch (e) {
         console.error("バンド一覧の取得に失敗しました", e);
       } finally {
@@ -80,7 +79,7 @@ export function useBands() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "バンド一覧");
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayString();
     XLSX.writeFile(workbook, `バンド一覧_${today}.xlsx`);
   };
 

@@ -1,10 +1,5 @@
 import IntroImagePicker from "./introImagePicker";
-import type {
-  IntroBlock,
-  IntroImage,
-  IntroTone,
-  IntroEffect,
-} from "../../Types/types";
+import type { IntroBlock, IntroEffect, IntroImage, IntroTone } from "../../Types/types";
 
 interface IntroBlockEditorProps {
   block: IntroBlock;

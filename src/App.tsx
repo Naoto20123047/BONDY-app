@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
+import { hasOfficerRole } from "./lib/roles";
 
 import LoginScreen from "./screens/Login/loginScreen";
 import HomeScreen from "./screens/Home/homeScreen";
@@ -76,7 +77,7 @@ function AppContent() {
     );
   }
  // ログイン済み+プロフィール登録済み → 通常のアプリ
-  const isOfficer = member.role === "幹部" || member.role === "管理者";
+  const isOfficer = hasOfficerRole(member);
 
 return (
     <Routes>

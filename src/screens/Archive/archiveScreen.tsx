@@ -2,14 +2,7 @@ import { useNavigate } from "react-router-dom";
 import "./archiveScreen.css";
 import { useArchive } from "./useArchive";
 import { youtubeThumbUrl } from "../../lib/archive";
-
-/** 2026-04-20 → 4/20(土) */
-function formatDate(date: string): string {
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return date;
-  const week = ["日", "月", "火", "水", "木", "金", "土"][parsed.getDay()];
-  return `${parsed.getMonth() + 1}/${parsed.getDate()}（${week}）`;
-}
+import { formatShortDate } from "../../lib/date";
 
 /**
  * アーカイブの一覧(部員のみ)
@@ -107,7 +100,7 @@ export default function ArchiveScreen() {
 
                   <div className="archive-card-body">
                     <span className="archive-card-date">
-                      {formatDate(event.date)}
+                      {formatShortDate(event.date)}
                     </span>
                     <span className="archive-card-title">{event.title}</span>
                     {event.venue && (

@@ -2,14 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import "./eventDetailScreen.css";
 import { useArchiveEvent } from "./useArchiveEvent";
 import YouTubePlayer from "./YouTubePlayer";
-
-/** 2026-04-20 → 2026年4月20日（土） */
-function formatDate(date: string): string {
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return date;
-  const week = ["日", "月", "火", "水", "木", "金", "土"][parsed.getDay()];
-  return `${parsed.getFullYear()}年${parsed.getMonth() + 1}月${parsed.getDate()}日（${week}）`;
-}
+import { formatFullDate } from "../../lib/date";
 
 /**
  * イベント1件の詳細(部員のみ)
@@ -53,7 +46,7 @@ export default function ArchiveEventDetailScreen() {
           <div className="ae-chips">
             <span className="ae-chip">
               <i className="ti ti-calendar" />
-              {formatDate(event.date)}
+              {formatFullDate(event.date)}
             </span>
             {event.venue && (
               <span className="ae-chip">

@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
-import { doc, getDoc, updateDoc, deleteField, collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteField, collection, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchOfficerIds } from "../../lib/members";
+import { hasOfficerRole } from "../../lib/roles";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { disableAuthAccount, enableAuthAccount, isWorkerConfigured } from "../../lib/workerClient";
-import type { Position, Member } from "../../Types/types";
+import type { Member, Position } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 export const assignablePositions: Position[] = [
   "サークル長",
@@ -42,17 +45,9 @@ export function useMemberDetail(id: string | undefined) {
     fetchMember();
   }, [id]);
 
-  // 他の幹部のIDを取得(提案者・対象者を除く)。承認依頼通知の宛先に使う
-  const getOtherOfficerIds = async (excludeIds: string[]) => {
-    const snap = await getDocs(query(collection(db, "members"), where("status", "==", "active")));
-    return snap.docs
-      .filter((d) => {
-        const r = (d.data() as { role: string }).role;
-        return r === "幹部" || r === "管理者";
-      })
-      .map((d) => d.id)
-      .filter((oid) => !excludeIds.includes(oid));
-  };
+  // 他の幹部のIDを取得(提案者・対象者を除く)。承認依頼通知の宛先に使う。
+  // 中身は lib/members.ts に集約してある
+  const getOtherOfficerIds = (excludeIds: string[]) => fetchOfficerIds(excludeIds);
 
   /**
    * 退会処理(円満な離脱を幹部が代行する)
@@ -73,7 +68,7 @@ export function useMemberDetail(id: string | undefined) {
       // ソフト削除(Member ドキュメントは残す)
       await updateDoc(doc(db, "members", member.id), {
         status: "withdrawn",
-        withdrawnAt: new Date().toISOString().slice(0, 10),
+        withdrawnAt: todayString(),
       });
       window.alert(`${member.name}さんを退会処理しました。`);
       await fetchMember();
@@ -101,7 +96,7 @@ export function useMemberDetail(id: string | undefined) {
     try {
       await updateDoc(doc(db, "members", member.id), {
         status: "expelled",
-        expelledAt: new Date().toISOString().slice(0, 10),
+        expelledAt: todayString(),
       });
 
       // members のドキュメントID = Firebase Auth の UID なので、そのまま渡せる
@@ -260,7 +255,9 @@ export function useMemberDetail(id: string | undefined) {
     }
   };
 
-  const isOfficerMember = member?.role === "幹部";
+  // 表示中のメンバーが幹部か。降格申請と役職付与のボタンを出す条件に使う。
+  // (操作する側ではなく、操作される側の役職を見ている)
+  const isOfficerMember = hasOfficerRole(member);
 
   return {
     member,

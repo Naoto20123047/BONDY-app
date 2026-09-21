@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./introViewScreen.css";
 import IntroBody from "./IntroBody";
 import { useAuth } from "../../lib/AuthContext";
+import { hasOfficerRole } from "../../lib/roles";
 import { loadIntroPage, DEFAULT_INTRO } from "../../lib/introPage";
 import type { IntroPage } from "../../Types/types";
 
@@ -19,7 +20,7 @@ export default function IntroViewScreen() {
   const [page, setPage] = useState<IntroPage>(DEFAULT_INTRO);
   const [loading, setLoading] = useState(true);
 
-  const isOfficer = member?.role === "幹部" || member?.role === "管理者";
+  const isOfficer = hasOfficerRole(member);
 
   useEffect(() => {
     let cancelled = false;

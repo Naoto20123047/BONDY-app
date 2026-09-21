@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchActiveMembers } from "../../lib/members";
 import { currentFiscalYear } from "../../lib/grade";
-import type { Member } from "../../Types/types";
 
 interface AdminSummary {
   activeMembers: number;
@@ -24,13 +24,7 @@ export function useAdmin() {
     const fetchSummary = async () => {
       try {
         // 在籍中メンバー
-        const memSnap = await getDocs(
-          query(collection(db, "members"), where("status", "==", "active"))
-        );
-        const members: Member[] = memSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Member, "id">),
-        }));
+        const members = await fetchActiveMembers();
         const activeMembers = members.length;
 
         // 保留中のロール変更申請数

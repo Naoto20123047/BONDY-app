@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, doc } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { db } from "../../lib/firebase";
+import { fetchActiveMembers } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { calcGrade, currentFiscalYear } from "../../lib/grade";
 import type { Member } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 export interface DuesRow {
   memberId: string;
@@ -41,11 +43,7 @@ export function useDues() {
   const fetchData = async () => {
     try {
       // 在籍中メンバー
-      const memQ = query(collection(db, "members"), where("status", "==", "active"));
-      const memSnap = await getDocs(memQ);
-      setAllMembers(
-        memSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Member, "id">) }))
-      );
+      setAllMembers(await fetchActiveMembers());
 
       // dues 全レコード
       const duesSnap = await getDocs(collection(db, "dues"));
@@ -80,7 +78,7 @@ export function useDues() {
         // 既存レコードを更新(納入⇔未納をトグル)
         await updateDoc(doc(db, "dues", row.duesDocId), {
           paid: !row.paid,
-          paidAt: !row.paid ? new Date().toISOString().slice(0, 10) : null,
+          paidAt: !row.paid ? todayString() : null,
           recordedBy: currentMember?.id ?? "",
         });
       } else {
@@ -89,7 +87,7 @@ export function useDues() {
           memberId: row.memberId,
           fiscalYear: selectedYear,
           paid: true,
-          paidAt: new Date().toISOString().slice(0, 10),
+          paidAt: todayString(),
           recordedBy: currentMember?.id ?? "",
         });
       }

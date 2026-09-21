@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../lib/AuthContext";
+import { hasOfficerRole } from "../../lib/roles";
 import { listEvents, summarizeItemsByEvent, groupByFiscalYear } from "../../lib/archive";
 import type { ArchiveYear, EventSummary } from "../../lib/archive";
 
@@ -11,7 +12,7 @@ import type { ArchiveYear, EventSummary } from "../../lib/archive";
  */
 export function useArchive() {
   const { member } = useAuth();
-  const isOfficer = member?.role === "幹部" || member?.role === "管理者";
+  const isOfficer = hasOfficerRole(member);
 
   const [years, setYears] = useState<ArchiveYear[]>([]);
   const [summary, setSummary] = useState<Record<string, EventSummary>>({});

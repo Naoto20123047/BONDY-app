@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchOfficerIds } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { getEquipmentManagerIds } from "../../lib/equipmentManager";
 import { currentFiscalYear } from "../../lib/grade";
 import type { Band, EquipmentRequest, FormType } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 
 interface AnsweredForm {
@@ -150,16 +152,8 @@ export function useMyPage() {
     fetchData();
   }, [member]);
 
-  // 幹部全員のIDを取得(通知用)
-  const getOfficerIds = async (): Promise<string[]> => {
-    const snap = await getDocs(query(collection(db, "members"), where("status", "==", "active")));
-    return snap.docs
-      .filter((d) => {
-        const r = (d.data() as { role: string }).role;
-        return r === "幹部" || r === "管理者";
-      })
-      .map((d) => d.id);
-  };
+  // 幹部全員のIDを取得(通知用)。中身は lib/members.ts に集約してある
+  const getOfficerIds = () => fetchOfficerIds();
 
   const leaveBand = async (bandId: string) => {
     if (!member) return;
@@ -198,7 +192,7 @@ export function useMyPage() {
     try {
       await updateDoc(doc(db, "equipmentRequests", requestId), {
         status: "返却報告済み",
-        reportedAt: new Date().toISOString().slice(0, 10),
+        reportedAt: todayString(),
       });
 
       // 機材担当に返却報告の通知
@@ -241,7 +235,7 @@ export function useMyPage() {
       // ソフト削除(status を withdrawn に)
       await updateDoc(doc(db, "members", member.id), {
         status: "withdrawn",
-        withdrawnAt: new Date().toISOString().slice(0, 10),
+        withdrawnAt: todayString(),
       });
 
       // 自分が所属しているバンドから自分を外す(最後の1人だったバンドは解散扱い)

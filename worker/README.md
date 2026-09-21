@@ -13,9 +13,14 @@ Firebase Spark プラン(無料)では Cloud Functions が使えないため、�
 | GET | `/health` | 疎通確認 | 不要 |
 | POST | `/notify/teams` | Teams への通知中継(C-2) | 在籍メンバー |
 | POST | `/admin/disable-user` | Auth アカウントの有効/無効切り替え(A-3) | 幹部、または本人の退会時 |
+| POST | `/images/upload` | 紹介ページの画像を KV に保存する | 幹部 |
+| POST | `/images/sign` | 保存済み画像の署名付きURLを発行する | サインイン済み |
+| POST | `/images/delete` | 画像を KV から削除する | 幹部 |
+| GET | `/images/file` | 画像の実体を返す | 署名で検証(IDトークン不要) |
 
-Drive を使う画像の取得・アップロードは未実装。アーカイブ機能の公開範囲ルールが
-決まってから追加する。
+画像の置き場所は Cloudflare Workers KV。`<img src>` に Authorization ヘッダを
+付けられないため、`/images/file` だけは ID トークンではなく HMAC 署名付きの URL で
+保護している(有効期限6時間)。詳しくは `src/imageStore.ts` の冒頭を参照。
 
 ## 認証
 
@@ -46,6 +51,22 @@ cd worker
 npm install
 ```
 
+`@cloudflare/workers-types` のメジャー版は wrangler 側が要求する版と揃える必要がある。
+ずれていると `npm install` が ERESOLVE で失敗し、`node_modules` が作られないため、
+エディタ上で `fetch` や `Response` まで含めて全ファイルが赤くなる。
+症状が出たらまず wrangler が要求している版をエラーメッセージで確認し、
+`package.json` の `@cloudflare/workers-types` をそれに合わせる
+(`--legacy-peer-deps` で押し込まないこと。型定義が古いまま残る)。
+
+### KV 名前空間
+
+紹介ページの画像置き場。作成済みで、id は `wrangler.toml` に書いてある。
+作り直す場合のみ以下を実行して、出てきた id を `wrangler.toml` に貼り直す。
+
+```bash
+npx wrangler kv namespace create IMAGES
+```
+
 ### Secrets の設定
 
 **リポジトリが public なので、秘匿情報は絶対にコミットしないこと。**
@@ -58,7 +79,17 @@ npx wrangler secret put TEAMS_WEBHOOK_URL
 # Firebase のサービスアカウントキー(JSON をそのまま貼り付ける)
 # Firebaseコンソール → プロジェクトの設定 → サービスアカウント → 新しい秘密鍵の生成
 npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
+
+# 画像URLの署名鍵。長いランダム文字列を自分で用意する
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+npx wrangler secret put IMAGE_SIGNING_KEY
 ```
+
+`wrangler secret put` は **名前だけを引数に渡し、値は対話プロンプトに入力する。**
+`wrangler secret put <値>` と書くと値が名前として登録され、
+`wrangler secret list` に値が丸見えで並ぶ。やってしまった場合は
+`wrangler secret delete` で消したうえで、**鍵を作り直すこと**(一度表示された鍵は
+漏洩したものとして扱う)。
 
 サービスアカウントには Identity Toolkit の管理権限が必要。Firebase が自動生成する
 `firebase-adminsdk-xxxxx@bondy-app-66ca4.iam.gserviceaccount.com` には既に付いている。

@@ -1,12 +1,10 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "./firebase";
+import { fetchActiveMembers } from "./members";
 import type { Member } from "../Types/types";
 
 // 機材管理の権限を持つ人のIDリストを返す。
 // 機材担当(positionsに「機材担当」)がいればその全員、いなければサークル長が代行。
 export async function getEquipmentManagerIds(): Promise<string[]> {
-  const snap = await getDocs(query(collection(db, "members"), where("status", "==", "active")));
-  const members: Member[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Member, "id">) }));
+  const members = await fetchActiveMembers();
 
   const managers = members.filter((m) => m.positions.includes("機材担当"));
   if (managers.length > 0) {

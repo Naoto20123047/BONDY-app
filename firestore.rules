@@ -44,9 +44,11 @@ service cloud.firestore {
       return hasMemberDoc() && memberData().status == 'active';
     }
 
-    // 幹部または管理者
+    // 幹部かどうか。
+    // 役職は '幹部' と '一般メンバー' の2つだけ('管理者' は v1.3.0 で廃止)。
+    // フロントの lib/roles.ts と worker/src/firestore.ts にも同じ判定がある。
     function isOfficer() {
-      return isActive() && memberData().role in ['幹部', '管理者'];
+      return isActive() && memberData().role == '幹部';
     }
 
     // 変更されたフィールドが指定した集合に収まっているか

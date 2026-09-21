@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchActiveMembers } from "../../lib/members";
+import { isOfficerRole } from "../../lib/roles";
 import { useAuth } from "../../lib/AuthContext";
 import type { Todo, TodoStatus } from "../../Types/types";
 import { createNotification } from "../../lib/notify";
@@ -23,16 +25,14 @@ export function useTodo() {
 
   const fetchData = async () => {
     try {
-      // 幹部メンバー(担当者候補)を取得。active かつ role が幹部/管理者
-      const memQ = query(collection(db, "members"), where("status", "==", "active"));
-      const memSnap = await getDocs(memQ);
+      // 幹部メンバー(担当者候補)を取得。active かつ role が幹部
+      const activeMembers = await fetchActiveMembers();
       const nameMap: Record<string, string> = {};
       const officers: OfficerOption[] = [];
-      memSnap.docs.forEach((d) => {
-        const data = d.data() as { name: string; role: string };
-        nameMap[d.id] = data.name;
-        if (data.role === "幹部" || data.role === "管理者") {
-          officers.push({ id: d.id, name: data.name });
+      activeMembers.forEach((m) => {
+        nameMap[m.id] = m.name;
+        if (isOfficerRole(m.role)) {
+          officers.push({ id: m.id, name: m.name });
         }
       });
       setOfficerOptions(officers);

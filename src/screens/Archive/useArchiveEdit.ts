@@ -16,12 +16,7 @@ import {
   deleteEventWithItems,
   parseYouTubeId,
 } from "../../lib/archive";
-import type {
-  ArchiveEvent,
-  ArchiveItem,
-  ArchiveMediaKind,
-  Band,
-} from "../../Types/types";
+import type { ArchiveEvent, ArchiveItem, ArchiveMediaKind, Band } from "../../Types/types";
 
 /** 映像1本ぶんの入力内容 */
 export interface ItemForm {

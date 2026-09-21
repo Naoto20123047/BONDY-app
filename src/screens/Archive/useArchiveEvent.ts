@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
+import { hasOfficerRole } from "../../lib/roles";
 import { getEvent, listItems } from "../../lib/archive";
 import type { ArchiveEvent, ArchiveItem, Band } from "../../Types/types";
 
@@ -13,7 +14,7 @@ import type { ArchiveEvent, ArchiveItem, Band } from "../../Types/types";
  */
 export function useArchiveEvent(eventId: string | undefined) {
   const { member } = useAuth();
-  const isOfficer = member?.role === "幹部" || member?.role === "管理者";
+  const isOfficer = hasOfficerRole(member);
 
   const [event, setEvent] = useState<ArchiveEvent | null>(null);
   const [items, setItems] = useState<ArchiveItem[]>([]);

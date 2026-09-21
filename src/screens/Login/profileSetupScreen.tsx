@@ -5,6 +5,7 @@ import { auth, db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 import { PART_OPTIONS, togglePart } from "../../lib/parts";
 import "./profileSetupScreen.css";
+import { todayString } from "../../lib/date";
 
 // 開志専門職大学の学部
 const FACULTIES = ["事業創造学部", "情報学部", "アニメ・マンガ学部"];
@@ -74,7 +75,7 @@ export default function ProfileSetupScreen({ onBack }: ProfileSetupScreenProps) 
         duesPaid: false,
         status: "active",
         // NEWバッジの判定に使う。今年度に加入した人だけバッジが出る
-        joinedAt: new Date().toISOString().slice(0, 10),
+        joinedAt: todayString(),
       });
       await refreshMember();
     } catch (e) {

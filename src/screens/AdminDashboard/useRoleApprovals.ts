@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchAllMembers } from "../../lib/members";
+import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
-import type { RoleChangeRequest, Position } from "../../Types/types";
+import type { Position, RoleChangeRequest } from "../../Types/types";
 import { createNotification } from "../../lib/notify";
 
 export interface RoleRequestView extends RoleChangeRequest {
@@ -35,11 +37,7 @@ export function useRoleApprovals() {
       }));
 
       // 氏名解決
-      const memSnap = await getDocs(collection(db, "members"));
-      const nameMap: Record<string, string> = {};
-      memSnap.docs.forEach((d) => {
-        nameMap[d.id] = (d.data() as { name: string }).name;
-      });
+      const nameMap = await fetchMemberNameMap();
 
       setRequests(
         raw.map((r) => ({
@@ -71,11 +69,10 @@ export function useRoleApprovals() {
       const exclusive = ["サークル長", "副サークル長", "会計担当"];
       if (exclusive.includes(req.position)) {
         // 同じ役職を持つ他メンバーから外す
-        const memSnap = await getDocs(collection(db, "members"));
-        for (const d of memSnap.docs) {
-          const positions: Position[] = (d.data() as { positions?: Position[] }).positions ?? [];
-          if (d.id !== req.targetMemberId && positions.includes(req.position)) {
-            await updateDoc(doc(db, "members", d.id), {
+        for (const m of await fetchAllMembers()) {
+          const positions: Position[] = m.positions ?? [];
+          if (m.id !== req.targetMemberId && positions.includes(req.position)) {
+            await updateDoc(doc(db, "members", m.id), {
               positions: positions.filter((p) => p !== req.position),
             });
           }

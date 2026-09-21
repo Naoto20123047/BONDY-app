@@ -8,12 +8,7 @@ import {
   clampSpan,
 } from "../../lib/introPage";
 import { deleteIntroImage } from "../../lib/introImages";
-import type {
-  IntroBlock,
-  IntroBlockType,
-  IntroImage,
-  IntroTone,
-} from "../../Types/types";
+import type { IntroBlock, IntroBlockType, IntroImage, IntroTone } from "../../Types/types";
 
 /**
  * 紹介ページの編集(幹部のみ)

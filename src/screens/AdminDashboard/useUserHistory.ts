@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, query, where, deleteDoc, doc } from "firebase/firestore";
+import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import type { Member, MemberStatus } from "../../Types/types";
+import { fetchFormerMembers } from "../../lib/members";
+import type { MemberStatus } from "../../Types/types";
 import { calcGrade } from "../../lib/grade";
 
 export interface LeftMemberView {
@@ -21,13 +22,7 @@ export function useUserHistory() {
   const fetchData = async () => {
     try {
       // 退会と除籍の両方を出す。表示上は区別する
-      const q = query(
-        collection(db, "members"),
-        where("status", "in", ["withdrawn", "expelled"])
-      );
-      const snap = await getDocs(q);
-      const list = snap.docs.map((d) => {
-        const m = { id: d.id, ...(d.data() as Omit<Member, "id">) };
+      const list = (await fetchFormerMembers()).map((m) => {
         return {
           id: m.id,
           name: m.name,

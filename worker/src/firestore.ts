@@ -73,7 +73,13 @@ export function isActiveMember(member: MemberInfo | null): boolean {
   return member !== null && member.status === "active";
 }
 
-/** 幹部または管理者か */
+/**
+ * 幹部か。
+ *
+ * この判定は Firestore のセキュリティルール(isOfficer())と
+ * フロントの lib/roles.ts(OFFICER_ROLES)にも同じものがある。
+ * **権限を持つ役職を変えるときは3箇所すべてを合わせること。**
+ */
 export function isOfficer(member: MemberInfo | null): boolean {
-  return isActiveMember(member) && (member!.role === "幹部" || member!.role === "管理者");
+  return isActiveMember(member) && member!.role === "幹部";
 }

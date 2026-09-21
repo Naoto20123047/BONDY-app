@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import "./introBody.css";
 import { collectIntroFileIds, resolveIntroImageUrls } from "../../lib/introImages";
-import type { IntroPage, IntroBlock, IntroImage, IntroTone } from "../../Types/types";
+import type { IntroBlock, IntroImage, IntroPage, IntroTone } from "../../Types/types";
 
 interface IntroBodyProps {
   page: IntroPage;
