@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./editProfileScreen.css";
 import { useEditProfile } from "./useEditProfile";
@@ -7,6 +8,7 @@ import { AVATAR_COLORS, avatarStyle } from "../../lib/avatarColors";
 
 export default function EditProfileScreen() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     member,
     parts,
@@ -15,6 +17,11 @@ export default function EditProfileScreen() {
     setNickname,
     avatarColor,
     setAvatarColor,
+    imageDataUrl,
+    pickImage,
+    clearImage,
+    imageError,
+    processingImage,
     loading,
     saving,
     save,
@@ -32,31 +39,81 @@ export default function EditProfileScreen() {
 
       <h2 className="edit-title">プロフィール編集</h2>
 
-      {/* アイコンのプレビューと色選択 */}
+      {/* アイコン画像 */}
       <div className="edit-field">
-        <label className="edit-label">アイコンの色</label>
+        <label className="edit-label">アイコン</label>
         <div className="edit-avatar-row">
-          <div className="edit-avatar-preview" style={avatarStyle(avatarColor)}>
-            {member.name.charAt(0)}
+          <div
+            className="edit-avatar-preview"
+            style={imageDataUrl ? undefined : avatarStyle(avatarColor)}
+          >
+            {imageDataUrl ? (
+              <img src={imageDataUrl} alt="" className="edit-avatar-img" />
+            ) : (
+              member.name.charAt(0)
+            )}
           </div>
-          <div className="edit-colors">
-            {AVATAR_COLORS.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={`edit-color ${avatarColor === c.id ? "selected" : ""}`}
-                style={{ background: c.bg, borderColor: avatarColor === c.id ? c.text : undefined }}
-                onClick={() => setAvatarColor(c.id)}
-                aria-label={c.label}
-                title={c.label}
-              >
-                {avatarColor === c.id && (
-                  <i className="ti ti-check" style={{ color: c.text }} />
-                )}
+
+          <div className="edit-avatar-buttons">
+            <button
+              type="button"
+              className="edit-image-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={processingImage}
+            >
+              <i className="ti ti-photo" />
+              {processingImage ? "処理中..." : imageDataUrl ? "画像を変更" : "画像を設定"}
+            </button>
+
+            {imageDataUrl && (
+              <button type="button" className="edit-image-btn" onClick={clearImage}>
+                <i className="ti ti-trash" /> 画像を外す
               </button>
-            ))}
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="edit-file-input"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) pickImage(file);
+                // 同じファイルを選び直せるように値を戻す
+                e.target.value = "";
+              }}
+            />
           </div>
         </div>
+
+        {imageError && <p className="edit-image-error">{imageError}</p>}
+
+        <p className="edit-note">
+          中央を正方形に切り出し、長辺256pxまで縮小して保存します。撮影日時や位置情報は保存時に取り除かれます。
+        </p>
+      </div>
+
+      {/* アイコンの色(画像未設定時のフォールバック) */}
+      <div className="edit-field">
+        <label className="edit-label">アイコンの色</label>
+        <div className="edit-colors">
+          {AVATAR_COLORS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={`edit-color ${avatarColor === c.id ? "selected" : ""}`}
+              style={{ background: c.bg, borderColor: avatarColor === c.id ? c.text : undefined }}
+              onClick={() => setAvatarColor(c.id)}
+              aria-label={c.label}
+              title={c.label}
+            >
+              {avatarColor === c.id && (
+                <i className="ti ti-check" style={{ color: c.text }} />
+              )}
+            </button>
+          ))}
+        </div>
+        <p className="edit-note">画像を設定していないときに使われます。</p>
       </div>
 
       <div className="edit-field">
@@ -117,7 +174,7 @@ export default function EditProfileScreen() {
         <button
           className="edit-save"
           onClick={() => save(() => navigate("/mypage"))}
-          disabled={saving}
+          disabled={saving || processingImage}
         >
           {saving ? "保存中..." : "保存する"}
         </button>

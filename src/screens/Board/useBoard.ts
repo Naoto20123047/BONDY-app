@@ -8,6 +8,7 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import type { Post, PostCategory } from "../../Types/types";
 
@@ -65,11 +66,7 @@ export function useBoard() {
       }
 
       // 氏名解決
-      const memSnap = await getDocs(collection(db, "members"));
-      const nameMap: Record<string, string> = {};
-      memSnap.docs.forEach((d) => {
-        nameMap[d.id] = (d.data() as { name: string }).name;
-      });
+      const nameMap = await fetchMemberNameMap();
 
       // コメント数を数える
       const commentSnap = await getDocs(collection(db, "comments"));
@@ -116,4 +113,4 @@ export function useBoard() {
     categoryFilter,
     setCategoryFilter,
   } as const;
-}
+}

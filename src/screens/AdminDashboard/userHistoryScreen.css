@@ -58,17 +58,51 @@
   flex-shrink: 0;
 }
 
+/* 押すと部員詳細へ(そこから在籍に戻せる) */
 .history-info {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
 }
 
 .history-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 15px;
   font-weight: 500;
   color: var(--color-text);
+}
+
+.history-info:hover .history-name {
+  color: var(--color-accent);
+}
+
+.history-badge {
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 退会は本人が復帰できる */
+.history-badge.withdrawn {
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
+}
+
+/* 除籍は幹部操作でしか戻せない */
+.history-badge.expelled {
+  background: #FBEDEB;
+  color: var(--color-danger);
 }
 
 .history-meta {

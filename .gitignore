@@ -22,11 +22,45 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
 
-# Firebase
+# ---------------------------------------------------------------------------
+# 秘匿情報
+#
+# **このリポジトリは公開されている。**
+# 鍵やトークンは一度でもコミットすると履歴に残り続け、後からファイルを消しても
+# 過去のコミットから読めてしまう。その場合はファイルを消すだけでは不十分で、
+# **鍵そのものを作り直す**必要がある。
+#
+# 迷ったものは「まず無視して、必要になったら後から許可」にすること。
+# ---------------------------------------------------------------------------
+
+# 環境変数。.env.example だけは値が空なので追跡する
+.env
+.env.*
+!.env.example
+
+# Cloudflare Worker のローカル秘密ファイル
+# (wrangler dev が読む。本番の秘匿情報は wrangler secret put で設定する)
+.dev.vars
+.dev.vars.*
+
+# サービスアカウントと秘密鍵の類
+*firebase-adminsdk*.json
+service-account*.json
+serviceAccount*.json
+*-service-account.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+
+# Firebase / Wrangler の作業ファイル
 .firebase
 firebase-debug.log
-*firebase-adminsdk*.json
-.env.local
-.env.*.local
+firestore-debug.log
+database-debug.log
+pubsub-debug.log
+ui-debug.log
+firebase-export-*
+.wrangler/

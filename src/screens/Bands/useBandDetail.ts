@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { doc, getDoc, updateDoc, getDocs, collection, query, where } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchActiveMembers, fetchOfficerIds } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { calcGrade } from "../../lib/grade";
-import type { Band, Member } from "../../Types/types";
+import { listItemsByBand } from "../../lib/archive";
+import type { ArchiveItem, Band } from "../../Types/types";
 
 export interface BandMemberView {
   memberId: string;
@@ -26,6 +28,8 @@ export function useBandDetail(id: string | undefined) {
   const [memberViews, setMemberViews] = useState<BandMemberView[]>([]);
   const [addableMembers, setAddableMembers] = useState<AddableMember[]>([]);
   const [addKeyword, setAddKeyword] = useState("");
+  /** このバンドが過去に出演した記録(アーカイブからの逆引き) */
+  const [performances, setPerformances] = useState<ArchiveItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchBand = async () => {
@@ -45,13 +49,7 @@ export function useBandDetail(id: string | undefined) {
       setBand(bandData);
 
       // 在籍メンバーを取得(氏名解決+追加候補の算出に使う)
-      const membersSnap = await getDocs(
-        query(collection(db, "members"), where("status", "==", "active"))
-      );
-      const allActive: Member[] = membersSnap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<Member, "id">),
-      }));
+      const allActive = await fetchActiveMembers();
 
       const nameMap: Record<string, string> = {};
       allActive.forEach((m) => (nameMap[m.id] = m.name));
@@ -77,6 +75,14 @@ export function useBandDetail(id: string | undefined) {
             faculty: m.faculty,
           }))
       );
+      // 過去の演奏。アーカイブが空でもバンド画面は成立するので、
+      // ここが失敗しても全体を止めない
+      try {
+        setPerformances(await listItemsByBand(bandData.id));
+      } catch (e) {
+        console.error("過去の演奏の取得に失敗しました", e);
+        setPerformances([]);
+      }
     } catch (e) {
       console.error("バンド情報の取得に失敗しました", e);
     } finally {
@@ -101,16 +107,8 @@ export function useBandDetail(id: string | undefined) {
       })
     : addableMembers;
 
-  // 幹部全員のIDを取得(通知用)
-  const getOfficerIds = async (): Promise<string[]> => {
-    const snap = await getDocs(query(collection(db, "members"), where("status", "==", "active")));
-    return snap.docs
-      .filter((d) => {
-        const r = (d.data() as { role: string }).role;
-        return r === "幹部" || r === "管理者";
-      })
-      .map((d) => d.id);
-  };
+  // 幹部全員のIDを取得(通知用)。中身は lib/members.ts に集約してある
+  const getOfficerIds = () => fetchOfficerIds();
 
   const addMember = async (newMemberId: string, part: string) => {
     if (!band || !currentMember) return;
@@ -203,6 +201,7 @@ export function useBandDetail(id: string | undefined) {
     addKeyword,
     setAddKeyword,
     isMyBand,
+    performances,
     loading,
     addMember,
     removeMember,

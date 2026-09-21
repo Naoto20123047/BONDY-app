@@ -2,19 +2,15 @@ import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
-import type { FormDef, FormResponse, Band } from "../../Types/types";
+import { hasOfficerRole } from "../../lib/roles";
+import { currentFiscalYear } from "../../lib/grade";
+import type { Band, FormDef, FormResponse } from "../../Types/types";
 
 interface FormSummary {
   id: string;
   title: string;
   deadline: string;
 }
-
-// 現在の年度(4月始まり)
-const currentFiscalYear = () => {
-  const now = new Date();
-  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-};
 
 export function useHome() {
   const { member } = useAuth();
@@ -24,7 +20,7 @@ export function useHome() {
   const [duesPaid, setDuesPaid] = useState(false); // 今年度の会費納入状況
   const [loading, setLoading] = useState(true);
 
-  const isOfficer = member?.role === "幹部" || member?.role === "管理者";
+  const isOfficer = hasOfficerRole(member);
 
   useEffect(() => {
     const fetchData = async () => {

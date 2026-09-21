@@ -32,11 +32,12 @@
   border-bottom: 0.5px solid var(--color-border);
 }
 
-/* 色は avatarStyle() でインライン指定する */
+/* 色は avatarStyle() でインライン指定する(画像がある場合は MemberAvatar が差し替える) */
 .detail-avatar {
   width: 80px;
   height: 80px;
   border-radius: 50%;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -100,6 +101,35 @@
 .detail-tag.ob {
   background: var(--color-surface-sub);
   color: var(--color-text-muted);
+}
+
+/* 今年度に加入したメンバー */
+.detail-tag.new {
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+/* 退会済み(本人が復帰できる) */
+.detail-tag.left {
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
+}
+
+/* 除籍済み(幹部操作でしか戻せない) */
+.detail-tag.expelled {
+  background: #FBEDEB;
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+/* 管理欄で現在の状態を示す行 */
+.detail-status-note {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0 0 12px;
 }
 
 /* ===== 本体:左右2カラム ===== */

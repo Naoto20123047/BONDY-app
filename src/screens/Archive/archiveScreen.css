@@ -1,0 +1,307 @@
+/* アーカイブの一覧。
+   動画の記録なので、文字よりサムネイルを主役にしたカード並びにしている */
+
+.archive-content {
+  padding: 36px 44px 80px;
+  max-width: 1040px;
+}
+
+.archive-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.archive-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 8px;
+}
+
+.archive-desc {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.archive-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 9px 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.archive-add-btn:hover {
+  background: var(--color-accent-dark);
+}
+
+/* ===== 何も無いとき ===== */
+.archive-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 64px 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-page);
+}
+
+.archive-empty-icon {
+  font-size: 34px;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.archive-empty-text {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.9;
+  text-align: center;
+  margin: 0;
+}
+
+/* ===== 年度の見出し ===== */
+.archive-year {
+  margin-bottom: 44px;
+}
+
+.archive-year-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+/* 年度の数字は大きく。記録を年で辿る画面なので、ここが目印になる */
+.archive-year-num {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent);
+  letter-spacing: -0.01em;
+}
+
+.archive-year-unit {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* 見出しの右に伸びる罫線。数字を目立たせつつ区切りを作る */
+.archive-year-rule {
+  flex: 1;
+  height: 1px;
+  margin: 0 4px;
+  background: linear-gradient(
+    90deg,
+    var(--color-border),
+    rgba(226, 231, 227, 0)
+  );
+}
+
+.archive-year-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ===== イベントのカード ===== */
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 20px;
+}
+
+.archive-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--transition),
+    box-shadow var(--transition),
+    border-color var(--transition);
+}
+
+.archive-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 非表示にしたものは幹部にだけ見える。見分けが付くよう薄くする */
+.archive-card.is-hidden {
+  opacity: 0.55;
+}
+
+/* ===== 表紙 ===== */
+.archive-cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--color-surface-sub);
+  overflow: hidden;
+}
+
+.archive-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.archive-card:hover .archive-cover-img {
+  transform: scale(1.04);
+}
+
+/* 動画が1本も無いイベント用 */
+.archive-cover-blank {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: rgba(255, 255, 255, 0.55);
+  background: linear-gradient(158deg, #0F7B6C 0%, #0A4A40 100%);
+}
+
+.archive-cover-count {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.66);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 12px;
+}
+
+.archive-cover-badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.66);
+  color: #fff;
+  font-size: 11px;
+}
+
+/* ===== カードの中身 ===== */
+.archive-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
+}
+
+.archive-card-date {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-accent-text);
+}
+
+.archive-card-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.archive-card-venue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+  .archive-content {
+    padding: 20px 20px 60px;
+  }
+
+  .archive-header {
+    flex-direction: column;
+  }
+
+  .archive-add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .archive-year {
+    margin-bottom: 32px;
+  }
+
+  .archive-year-num {
+    font-size: 25px;
+  }
+
+  /* スマホでは1列。ただし縦積みのままだと1件で画面が埋まるので、
+     サムネイルを左、文字を右に置いて1行にする */
+  .archive-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .archive-card {
+    flex-direction: row;
+  }
+
+  .archive-card:hover {
+    transform: none;
+  }
+
+  .archive-cover {
+    width: 136px;
+    flex-shrink: 0;
+    aspect-ratio: 16 / 11;
+  }
+
+  .archive-cover-count {
+    right: 6px;
+    bottom: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .archive-cover-badge {
+    left: 6px;
+    top: 6px;
+    padding: 2px 8px;
+  }
+
+  .archive-card-body {
+    justify-content: center;
+    padding: 10px 14px;
+    gap: 4px;
+  }
+
+  .archive-card-title {
+    font-size: 14px;
+  }
+}

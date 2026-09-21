@@ -13,9 +13,10 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotification } from "../../lib/notify";
-import type { Post, Comment } from "../../Types/types";
+import type { Comment, Post } from "../../Types/types";
 
 export type CommentType = "text" | "stamp";
 
@@ -55,11 +56,7 @@ export function usePostDetail(id: string | undefined) {
       if (postData.isAnonymous) {
         setAuthorName(postData.authorId === member?.id ? "匿名（あなた）" : "匿名");
       } else {
-        const memSnap = await getDocs(collection(db, "members"));
-        const nameMap: Record<string, string> = {};
-        memSnap.docs.forEach((d) => {
-          nameMap[d.id] = (d.data() as { name: string }).name;
-        });
+        const nameMap = await fetchMemberNameMap();
         setAuthorName(nameMap[postData.authorId] ?? "不明");
       }
     } catch (e) {
@@ -81,11 +78,7 @@ export function usePostDetail(id: string | undefined) {
     let unsubscribe: (() => void) | undefined;
 
     const setup = async () => {
-      const memSnap = await getDocs(collection(db, "members"));
-      const nameMap: Record<string, string> = {};
-      memSnap.docs.forEach((d) => {
-        nameMap[d.id] = (d.data() as { name: string }).name;
-      });
+      const nameMap = await fetchMemberNameMap();
 
       const q = query(
         collection(db, "comments"),
@@ -294,4 +287,4 @@ export function usePostDetail(id: string | undefined) {
     deletePost,
     deleteComment,
   } as const;
-}
+}

@@ -13,6 +13,7 @@ export default function LoginScreen() {
     loading,
     handleSubmit,
     changeMode,
+    expelledBlocked,
   } = useLogin();
 
   const titleMap = {
@@ -46,6 +47,15 @@ export default function LoginScreen() {
             ? "登録済みのメールアドレスに再設定用のリンクを送ります。"
             : "大学のメールアドレスでご利用いただけます。"}
         </p>
+
+        {/* A-3: 除籍済みのアカウントでサインインが通ってしまった場合、
+            AuthContext 側でサインアウトしたうえでここに理由を出す。
+            退会(本人の意思)の場合は締め出さず、復帰画面へ進む */}
+        {expelledBlocked && (
+          <p className="login-error">
+            このアカウントは現在ご利用いただけません。心当たりがない場合は幹部に連絡してください。
+          </p>
+        )}
 
         <div className="login-field">
           <label className="login-label">メールアドレス</label>

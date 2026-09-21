@@ -40,9 +40,17 @@ export default function AdminScreen() {
       key: "history",
       icon: "ti-history",
       title: "ユーザー履歴",
-      desc: "退会済みメンバーの管理・完全削除",
+      desc: "退会・除籍したメンバーの管理・完全削除",
       badge: 0,
       path: "/admin/history",
+    },
+    {
+      key: "intro",
+      icon: "ti-file-text",
+      title: "紹介画面の編集",
+      desc: "加入前の人に見せる文章を編集",
+      badge: 0,
+      path: "/admin/intro",
     },
   ];
 

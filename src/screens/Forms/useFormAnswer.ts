@@ -1,14 +1,11 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where, addDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
-import type { FormDef, Band, FormResponse, FormQuestion } from "../../Types/types";
-
-// 現在の年度(4月始まり)
-const currentFiscalYear = () => {
-  const now = new Date();
-  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-};
+import { currentFiscalYear } from "../../lib/grade";
+import type { Band, FormDef, FormQuestion, FormResponse } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 /**
  * 表示条件をもとに、表示すべき質問だけを返す。
@@ -109,12 +106,7 @@ export function useFormAnswer(id: string | undefined) {
           });
           setPaidMemberIds(paidIds);
 
-          const memSnap = await getDocs(collection(db, "members"));
-          const names: Record<string, string> = {};
-          memSnap.docs.forEach((d) => {
-            names[d.id] = (d.data() as { name: string }).name;
-          });
-          setNameMap(names);
+          setNameMap(await fetchMemberNameMap());
         }
       } catch (e) {
         console.error("フォームの取得に失敗しました", e);
@@ -190,7 +182,7 @@ export function useFormAnswer(id: string | undefined) {
           await updateDoc(doc(db, "formResponses", existing.id), {
             answers: cleanedAnswers,
             memberId: member.id, // 最後に編集した人
-            submittedAt: new Date().toISOString().slice(0, 10),
+            submittedAt: todayString(),
           });
         } else {
           await addDoc(collection(db, "formResponses"), {
@@ -198,7 +190,7 @@ export function useFormAnswer(id: string | undefined) {
             memberId: member.id,
             bandId,
             answers: cleanedAnswers,
-            submittedAt: new Date().toISOString().slice(0, 10),
+            submittedAt: todayString(),
           });
         }
       } else {
@@ -207,14 +199,14 @@ export function useFormAnswer(id: string | undefined) {
         if (mine) {
           await updateDoc(doc(db, "formResponses", mine.id), {
             answers: cleanedAnswers,
-            submittedAt: new Date().toISOString().slice(0, 10),
+            submittedAt: todayString(),
           });
         } else {
           await addDoc(collection(db, "formResponses"), {
             formId: form.id,
             memberId: member.id,
             answers: cleanedAnswers,
-            submittedAt: new Date().toISOString().slice(0, 10),
+            submittedAt: todayString(),
           });
         }
       }

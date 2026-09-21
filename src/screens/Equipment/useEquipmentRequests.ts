@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchMemberNameMap } from "../../lib/members";
 import { createNotification } from "../../lib/notify";
 import type { EquipmentRequest } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 export interface RequestView extends EquipmentRequest {
   memberName: string;
@@ -23,11 +25,7 @@ export function useEquipmentRequests() {
       }));
 
       // 氏名・機材名の解決
-      const memSnap = await getDocs(collection(db, "members"));
-      const nameMap: Record<string, string> = {};
-      memSnap.docs.forEach((d) => {
-        nameMap[d.id] = (d.data() as { name: string }).name;
-      });
+      const nameMap = await fetchMemberNameMap();
       const eqSnap = await getDocs(collection(db, "equipment"));
       const eqMap: Record<string, string> = {};
       eqSnap.docs.forEach((d) => {
@@ -61,7 +59,7 @@ export function useEquipmentRequests() {
     try {
       await updateDoc(doc(db, "equipmentRequests", id), {
         status: "貸出中",
-        approvedAt: new Date().toISOString().slice(0, 10),
+        approvedAt: todayString(),
       });
       // 申請者に承認通知
       if (target) {
@@ -106,7 +104,7 @@ export function useEquipmentRequests() {
     try {
       await updateDoc(doc(db, "equipmentRequests", id), {
         status: "返却完了",
-        returnedAt: new Date().toISOString().slice(0, 10),
+        returnedAt: todayString(),
       });
       // 借りていた本人に返却完了通知
       if (target) {

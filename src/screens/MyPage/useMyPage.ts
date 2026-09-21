@@ -1,15 +1,19 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchOfficerIds } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { getEquipmentManagerIds } from "../../lib/equipmentManager";
-import type { Band, EquipmentRequest } from "../../Types/types";
+import { currentFiscalYear } from "../../lib/grade";
+import type { Band, EquipmentRequest, FormType } from "../../Types/types";
+import { todayString } from "../../lib/date";
 
 
 interface AnsweredForm {
   id: string;
   title: string;
+  type: FormType;
   answeredAt: string;
 }
 
@@ -21,12 +25,6 @@ interface MyEquipment {
   status: "貸出中" | "返却報告済み";
   overdue: boolean;
 }
-
-// 現在の年度(4月始まり)
-const currentFiscalYear = () => {
-  const now = new Date();
-  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-};
 
 export function useMyPage() {
   const { member, refreshMember } = useAuth();
@@ -96,8 +94,53 @@ export function useMyPage() {
         );
       setBands(myBands);
 
-      // 回答済みフォームは後で接続(今は空)
-      setAnsweredForms([]);
+      // 回答済みフォーム
+      // 判定は「自分が回答者(memberId)として記録されているもの」。
+      // フォーム一覧画面(useForms.ts)の回答済み判定と同じ基準に揃えてある。
+      const respQ = query(
+        collection(db, "formResponses"),
+        where("memberId", "==", member.id)
+      );
+      const respSnap = await getDocs(respQ);
+      const myResponses = respSnap.docs.map(
+        (d) => d.data() as { formId: string; submittedAt: string }
+      );
+
+      if (myResponses.length === 0) {
+        setAnsweredForms([]);
+      } else {
+        // フォーム名と種別の解決
+        const formsSnap = await getDocs(collection(db, "forms"));
+        const formMap: Record<string, { title: string; type: FormType }> = {};
+        formsSnap.docs.forEach((d) => {
+          const data = d.data() as { title: string; type: FormType };
+          formMap[d.id] = { title: data.title, type: data.type };
+        });
+
+        // バンドフォームは1人が複数バンド分を回答しうるので、
+        // フォーム単位で最新の回答日にまとめる
+        const latestAt: Record<string, string> = {};
+        myResponses.forEach((r) => {
+          // 削除済みのフォームへの回答は表示しない
+          if (!formMap[r.formId]) return;
+          const at = r.submittedAt ?? "";
+          if (!latestAt[r.formId] || latestAt[r.formId] < at) {
+            latestAt[r.formId] = at;
+          }
+        });
+
+        setAnsweredForms(
+          Object.entries(latestAt)
+            .map(([formId, answeredAt]) => ({
+              id: formId,
+              title: formMap[formId].title,
+              type: formMap[formId].type,
+              answeredAt,
+            }))
+            // 新しい順
+            .sort((a, b) => (a.answeredAt < b.answeredAt ? 1 : -1))
+        );
+      }
     } catch (e) {
       console.error("マイページ情報の取得に失敗しました", e);
     } finally {
@@ -109,16 +152,8 @@ export function useMyPage() {
     fetchData();
   }, [member]);
 
-  // 幹部全員のIDを取得(通知用)
-  const getOfficerIds = async (): Promise<string[]> => {
-    const snap = await getDocs(query(collection(db, "members"), where("status", "==", "active")));
-    return snap.docs
-      .filter((d) => {
-        const r = (d.data() as { role: string }).role;
-        return r === "幹部" || r === "管理者";
-      })
-      .map((d) => d.id);
-  };
+  // 幹部全員のIDを取得(通知用)。中身は lib/members.ts に集約してある
+  const getOfficerIds = () => fetchOfficerIds();
 
   const leaveBand = async (bandId: string) => {
     if (!member) return;
@@ -157,7 +192,7 @@ export function useMyPage() {
     try {
       await updateDoc(doc(db, "equipmentRequests", requestId), {
         status: "返却報告済み",
-        reportedAt: new Date().toISOString().slice(0, 10),
+        reportedAt: todayString(),
       });
 
       // 機材担当に返却報告の通知
@@ -191,13 +226,16 @@ export function useMyPage() {
       window.alert("貸出中の機材があります。返却が完了してから退会してください。");
       return;
     }
-    const ok = window.confirm("退会します。この操作は取り消せません。よろしいですか?");
+    const ok = window.confirm(
+      "退会します。\n\n所属しているバンドからは外れますが、登録内容は残るため、" +
+        "後から同じアカウントでログインすれば復帰できます。\n\nよろしいですか?"
+    );
     if (!ok) return;
     try {
       // ソフト削除(status を withdrawn に)
       await updateDoc(doc(db, "members", member.id), {
         status: "withdrawn",
-        withdrawnAt: new Date().toISOString().slice(0, 10),
+        withdrawnAt: todayString(),
       });
 
       // 自分が所属しているバンドから自分を外す(最後の1人だったバンドは解散扱い)
@@ -219,8 +257,15 @@ export function useMyPage() {
         "/roster"
       );
 
-      window.alert("退会しました。ご利用ありがとうございました。");
-      await refreshMember(); // member が null になり、ログイン/登録画面へ
+      // 退会は本人の意思によるものなので、Auth アカウントは無効化しない。
+      // 完全削除されていなければ、再ログイン時に復帰画面から戻れる。
+      // (問題があって締め出す場合は、幹部が「除籍」を使う)
+      window.alert(
+        "退会しました。ご利用ありがとうございました。\n\n" +
+          "またいつでも、同じアカウントでログインすれば復帰できます。"
+      );
+      // status が withdrawn になっているため、AuthContext が復帰画面に切り替える
+      await refreshMember();
     } catch (e) {
       console.error("退会に失敗しました", e);
       window.alert("退会処理に失敗しました。");

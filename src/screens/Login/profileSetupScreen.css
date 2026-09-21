@@ -17,6 +17,20 @@
   padding: 32px 28px;
 }
 
+/* 加入フローから開いたときだけ出る戻るリンク */
+.setup-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
 .setup-title {
   font-weight: 600;
   font-size: 22px;

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchAllMembers } from "../../lib/members";
 import { calcGrade } from "../../lib/grade";
 import { formatParts } from "../../lib/parts";
 import { filterVisibleQuestions } from "./useFormAnswer";
-import type { FormDef, FormResponse, Member, Band } from "../../Types/types";
+import type { Band, FormDef, FormResponse, Member } from "../../Types/types";
 
 // バンドのメンバー(氏名 + パート)
 export interface BandMemberInfo {
@@ -64,10 +65,9 @@ export function useFormResults(id: string | undefined) {
         }));
 
         // メンバー情報
-        const memSnap = await getDocs(collection(db, "members"));
         const memMap: Record<string, Member> = {};
-        memSnap.docs.forEach((d) => {
-          memMap[d.id] = { id: d.id, ...(d.data() as Omit<Member, "id">) };
+        (await fetchAllMembers()).forEach((m) => {
+          memMap[m.id] = m;
         });
 
         // バンド情報

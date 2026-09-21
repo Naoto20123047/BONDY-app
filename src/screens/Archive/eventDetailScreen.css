@@ -1,0 +1,242 @@
+/* イベント詳細。映像・音源をセットリスト順に並べる */
+
+.ae-content {
+  padding: 36px 44px 80px;
+  max-width: 1040px;
+}
+
+.ae-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 22px;
+}
+
+/* ===== 見出し ===== */
+.ae-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 22px;
+  margin-bottom: 24px;
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.ae-hero-main {
+  min-width: 0;
+}
+
+.ae-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: clamp(22px, 3vw, 28px);
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+/* 日付・会場・本数。並べて置きたいので同じ形にしてある */
+.ae-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ae-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.ae-chip.accent {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.ae-badge {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.ae-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 9px 16px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ae-edit-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.ae-note {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.9;
+  margin: 0 0 28px;
+  padding: 16px 18px;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--color-page);
+  /* 幹部が入れた改行をそのまま出す */
+  white-space: pre-wrap;
+}
+
+/* ===== 何も無いとき ===== */
+.ae-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 60px 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-page);
+}
+
+.ae-empty-icon {
+  font-size: 32px;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.ae-empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.9;
+  text-align: center;
+  margin: 0;
+}
+
+/* ===== 映像・音源 =====
+   PCでは2列。1本ずつ縦に積むと、5本でも延々スクロールすることになる */
+.ae-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 32px 26px;
+}
+
+.ae-item.is-hidden {
+  opacity: 0.55;
+}
+
+.ae-item-body {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* セットリストの通し番号。中抜き文字にして飾りとして置く */
+.ae-item-no {
+  flex-shrink: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-accent);
+  opacity: 0.3;
+  user-select: none;
+}
+
+@supports (-webkit-text-stroke: 1px #000) {
+  .ae-item-no {
+    color: transparent;
+    -webkit-text-stroke: 1.2px var(--color-accent);
+    opacity: 0.6;
+  }
+}
+
+.ae-item-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.ae-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.ae-item-kind {
+  color: var(--color-accent);
+  font-size: 16px;
+}
+
+.ae-band-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ae-band-link:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+  background: var(--color-accent-bg);
+}
+
+.ae-item-note {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.9;
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 768px) {
+  .ae-content {
+    padding: 20px 20px 60px;
+  }
+
+  .ae-hero {
+    flex-direction: column;
+  }
+
+  .ae-edit-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ae-items {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}

@@ -1,6 +1,7 @@
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import type { NotificationType } from "../Types/types";
+import { todayString } from "./date";
 
 // 1人に通知を作成
 export async function createNotification(
@@ -16,7 +17,7 @@ export async function createNotification(
       message,
       link,
       read: false,
-      createdAt: new Date().toISOString().slice(0, 10),
+      createdAt: todayString(),
     });
   } catch (e) {
     console.error("通知の作成に失敗しました", e);

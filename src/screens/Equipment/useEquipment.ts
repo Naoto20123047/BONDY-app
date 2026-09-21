@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { getEquipmentManagerIds } from "../../lib/equipmentManager";
 import type { Equipment, EquipmentRequest } from "../../Types/types";
@@ -39,11 +40,7 @@ export function useEquipment() {
         }));
 
         // メンバー氏名の解決用
-        const memSnap = await getDocs(collection(db, "members"));
-        const nameMap: Record<string, string> = {};
-        memSnap.docs.forEach((d) => {
-          nameMap[d.id] = (d.data() as { name: string }).name;
-        });
+        const nameMap = await fetchMemberNameMap();
 
         const now = new Date();
         const views: EquipmentView[] = equipment.map((eq) => {

@@ -36,6 +36,7 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -222,22 +223,78 @@
   cursor: pointer;
 }
 
+/* 回答済みフォーム(押すと回答画面へ) */
 .mypage-form {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 18px 0;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 2px;
+  border: none;
   border-bottom: 0.5px solid var(--color-border);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mypage-form:hover .mypage-form-title {
+  color: var(--color-accent);
+}
+
+.mypage-form:hover .mypage-form-chevron {
+  color: var(--color-accent);
+  transform: translateX(2px);
+}
+
+.mypage-form-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.mypage-form-tag {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.mypage-form-tag.event {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.mypage-form-tag.survey {
+  background: var(--color-surface-sub);
+  color: var(--color-text-secondary);
 }
 
 .mypage-form-title {
   font-size: 16px;
   color: var(--color-text);
+  overflow-wrap: anywhere;
+  transition: color var(--transition);
+}
+
+.mypage-form-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .mypage-form-date {
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+.mypage-form-chevron {
+  font-size: 18px;
+  color: var(--color-text-muted);
+  transition: color var(--transition), transform var(--transition);
 }
 
 .mypage-equip {
@@ -346,6 +403,11 @@
 
   .mypage-info-row dt {
     width: 76px;
+  }
+
+  /* 狭い画面では日付を省いてタイトルの幅を確保する */
+  .mypage-form-date {
+    display: none;
   }
 
   .mypage-credit {

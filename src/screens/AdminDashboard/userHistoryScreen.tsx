@@ -16,25 +16,43 @@ export default function UserHistoryScreen() {
         <i className="ti ti-arrow-left" /> 幹部管理に戻る
       </button>
 
-      <h2 className="history-title">ユーザー履歴(退会済み)</h2>
+      <h2 className="history-title">ユーザー履歴</h2>
       <p className="history-desc">
-        退会したメンバーの記録です。完全削除すると、関連データも含めて元に戻せません。
+        在籍していないメンバーの記録です。氏名をクリックすると部員詳細が開き、そこから在籍中に戻せます。
+        完全削除すると元に戻せません。
       </p>
 
       {members.length === 0 ? (
-        <p className="history-empty">退会済みのメンバーはいません</p>
+        <p className="history-empty">退会・除籍したメンバーはいません</p>
       ) : (
         <div className="history-list">
           {members.map((m) => (
             <div key={m.id} className="history-item">
               <div className="history-avatar">{m.name.charAt(0)}</div>
-              <div className="history-info">
-                <span className="history-name">{m.name}</span>
+
+              <button
+                className="history-info"
+                onClick={() => navigate(`/roster/${m.id}`)}
+              >
+                <span className="history-name">
+                  {m.name}
+                  <span
+                    className={`history-badge ${
+                      m.status === "expelled" ? "expelled" : "withdrawn"
+                    }`}
+                  >
+                    {m.status === "expelled" ? "除籍" : "退会"}
+                  </span>
+                </span>
                 <span className="history-meta">
                   {m.studentId} ・ {m.faculty} ・ {m.gradeLabel}
                 </span>
-                <span className="history-date">退会日:{m.withdrawnAt}</span>
-              </div>
+                <span className="history-date">
+                  {m.status === "expelled" ? "除籍日" : "退会日"}:
+                  {m.leftAt || "不明"}
+                </span>
+              </button>
+
               <button
                 className="history-delete"
                 onClick={() => deletePermanently(m.id)}

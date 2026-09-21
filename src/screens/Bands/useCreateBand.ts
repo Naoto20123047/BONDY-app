@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchActiveMembers } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
+import { notifyNewBand } from "../../lib/teamsNotify";
 import type { Member } from "../../Types/types";
 
 export interface BandMemberInput {
@@ -9,6 +11,7 @@ export interface BandMemberInput {
   name: string;
   part: string;
   avatarColor?: string;
+  avatarThumb?: string;
 }
 
 /** プロフィールのパート(配列)を、バンド内パートの初期値に変換する */
@@ -31,11 +34,7 @@ export function useCreateBand() {
     const fetchMembers = async () => {
       try {
         // 在籍中(active)かつOBでないメンバーを取得
-        const q = query(collection(db, "members"), where("status", "==", "active"));
-        const snapshot = await getDocs(q);
-        const list: Member[] = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Member, "id">) }))
-          .filter((m) => !m.isOB); // OBはバンド加入不可
+        const list = (await fetchActiveMembers()).filter((m) => !m.isOB); // OBはバンド加入不可
         setAllMembers(list);
 
         // 申請者自身を初期メンバーに追加
@@ -46,6 +45,7 @@ export function useCreateBand() {
               name: currentMember.name,
               part: defaultPart(currentMember.parts),
               avatarColor: currentMember.avatarColor,
+              avatarThumb: currentMember.avatarThumb,
             },
           ]);
         }
@@ -67,7 +67,13 @@ export function useCreateBand() {
     if (!m) return;
     setSelected((prev) => [
       ...prev,
-      { memberId: m.id, name: m.name, part: defaultPart(m.parts), avatarColor: m.avatarColor },
+      {
+        memberId: m.id,
+        name: m.name,
+        part: defaultPart(m.parts),
+        avatarColor: m.avatarColor,
+        avatarThumb: m.avatarThumb,
+      },
     ]);
   };
 
@@ -99,6 +105,13 @@ export function useCreateBand() {
         members: selected.map((s) => ({ memberId: s.memberId, part: s.part.trim() })),
         status: "申請中",
       });
+
+      // Teams に通知(失敗しても申請は成立させる)
+      await notifyNewBand({
+        bandName: name.trim(),
+        memberNames: selected.map((s) => s.name),
+      });
+
       onDone();
     } catch (e) {
       console.error("バンド結成申請に失敗しました", e);
@@ -121,4 +134,4 @@ export function useCreateBand() {
     save,
     currentMemberId: currentMember?.id ?? "",
   } as const;
-}
+}

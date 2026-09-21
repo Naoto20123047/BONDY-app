@@ -3,8 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import "./memberDetailScreen.css";
 import { useMemberDetail, assignablePositions } from "./useMemberDetail";
 import { useAuth } from "../../lib/AuthContext";
-import { calcGrade } from "../../lib/grade";
-import { avatarStyle } from "../../lib/avatarColors";
+import { calcGrade, isNewMember } from "../../lib/grade";
+import MemberAvatar from "../Layout/MemberAvatar";
 import type { Position } from "../../Types/types";
 
 interface MemberDetailProps {
@@ -19,6 +19,8 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
     member,
     loading,
     withdrawMember,
+    expelMember,
+    restoreMember,
     registerOB,
     promoteToOfficer,
     proposeDismissOfficer,
@@ -56,9 +58,13 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
 
       {/* プロフィールヘッダー(横並び) */}
       <header className="detail-hero">
-        <div className="detail-avatar" style={avatarStyle(member.avatarColor)}>
-          {member.name.charAt(0)}
-        </div>
+        <MemberAvatar
+          name={member.name}
+          avatarColor={member.avatarColor}
+          avatarThumb={member.avatarThumb}
+          avatarImageId={member.avatarImageId}
+          className="detail-avatar"
+        />
 
         <div className="detail-identity">
           <h1 className="detail-name">
@@ -69,6 +75,16 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
             {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}・{member.studentId}
           </p>
           <div className="detail-tags">
+            {/* 今年度に加入したメンバー */}
+            {isNewMember(member.joinedAt) && (
+              <span className="detail-tag new">NEW</span>
+            )}
+            {member.status === "withdrawn" && (
+              <span className="detail-tag left">退会済み</span>
+            )}
+            {member.status === "expelled" && (
+              <span className="detail-tag expelled">除籍済み</span>
+            )}
             {member.isOB && <span className="detail-tag ob">OB・OG</span>}
             {member.positions.map((p) => (
               <span key={p} className="detail-tag position">{p}</span>
@@ -96,6 +112,14 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
             <div className="detail-field">
               <dt>入学年度</dt>
               <dd>{member.enrollmentYear}年度</dd>
+            </div>
+            <div className="detail-field">
+              <dt>加入日</dt>
+              <dd>
+                {member.joinedAt ?? (
+                  <span className="detail-none">未記録</span>
+                )}
+              </dd>
             </div>
             <div className="detail-field">
               <dt>パート</dt>
@@ -184,21 +208,52 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
             <div className="detail-manage-block">
               <p className="detail-block-label">在籍</p>
 
-              {!member.isOB && (
-                <button className="detail-btn" onClick={registerOB}>
-                  <i className="ti ti-user-check" />
-                  OB登録
-                </button>
+              {member.status === "active" ? (
+                <>
+                  {!member.isOB && (
+                    <button className="detail-btn" onClick={registerOB}>
+                      <i className="ti ti-user-check" />
+                      OB登録
+                    </button>
+                  )}
+
+                  <button className="detail-btn" onClick={withdrawMember}>
+                    <i className="ti ti-door-exit" />
+                    退会処理
+                    <span className="detail-btn-note">本人が復帰可</span>
+                  </button>
+
+                  <button className="detail-btn danger" onClick={expelMember}>
+                    <i className="ti ti-user-x" />
+                    除籍
+                    <span className="detail-btn-note">ログイン不可</span>
+                  </button>
+
+                  <p className="detail-note">
+                    退会は本人が再ログインすれば戻れます。除籍はアカウントを無効化するため、戻すには幹部の操作が必要です
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="detail-status-note">
+                    {member.status === "withdrawn"
+                      ? `退会済み(${member.withdrawnAt ?? "日付不明"})`
+                      : `除籍済み(${member.expelledAt ?? "日付不明"})`}
+                  </p>
+
+                  <button className="detail-btn" onClick={restoreMember}>
+                    <i className="ti ti-user-plus" />
+                    在籍に戻す
+                    {member.status === "expelled" && (
+                      <span className="detail-btn-note">アカウントも有効化</span>
+                    )}
+                  </button>
+
+                  <p className="detail-note">
+                    データの完全な削除はユーザー履歴から
+                  </p>
+                </>
               )}
-
-              <button className="detail-btn danger" onClick={withdrawMember}>
-                <i className="ti ti-user-x" />
-                退会処理
-              </button>
-
-              <p className="detail-note">
-                退会してもデータは残ります。完全な削除はユーザー履歴から
-              </p>
             </div>
           </section>
         )}

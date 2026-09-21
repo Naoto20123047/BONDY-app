@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { notifyNewEquipment } from "../../lib/teamsNotify";
 import type { Equipment, EquipmentCategory } from "../../Types/types";
 
 export const categories: EquipmentCategory[] = [
@@ -40,6 +41,14 @@ export function useEquipmentManage() {
         Object.entries(data).filter(([, v]) => v !== undefined)
       );
       await addDoc(collection(db, "equipment"), cleaned);
+
+      // Teams に通知(失敗しても登録は成立させる)
+      await notifyNewEquipment({
+        name: data.name,
+        category: data.category,
+        quantity: data.totalQuantity,
+      });
+
       await fetchItems();
     } catch (e) {
       console.error("機材の追加に失敗しました", e);

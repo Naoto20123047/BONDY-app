@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { fetchActiveMembers } from "../../lib/members";
 import { createNotifications } from "../../lib/notify";
-import type { FormType, FormQuestion } from "../../Types/types";
+import { notifyNewForm } from "../../lib/teamsNotify";
+import { formTypeLabel } from "../../lib/formLabel";
+import type { FormQuestion, FormType } from "../../Types/types";
 
 const genId = () => Math.random().toString(36).slice(2, 9);
 
@@ -182,16 +185,21 @@ export function useCreateForm() {
       });
 
       // 在籍中の全メンバーに「フォーム配信」通知を作成
-      const memSnap = await getDocs(collection(db, "members"));
-      const targetIds = memSnap.docs
-        .filter((d) => (d.data() as { status?: string }).status === "active")
-        .map((d) => d.id);
+      const targetIds = (await fetchActiveMembers()).map((m) => m.id);
       await createNotifications(
         targetIds,
         "form_published",
         `新しいフォーム「${title.trim()}」が配信されました`,
         `/forms/${formRef.id}`
       );
+
+      // Teams に通知(失敗してもフォーム作成は成立させる)
+      await notifyNewForm({
+        formId: formRef.id,
+        typeLabel: formTypeLabel(type),
+        title: title.trim(),
+        deadline,
+      });
 
       onDone();
     } catch (e) {
