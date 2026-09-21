@@ -218,7 +218,7 @@ export default function MyPageScreen() {
 
       {/* クレジット */}
       <div className="mypage-credit">
-        <p className="mypage-credit-app">BONDYアプリ　v1.3.0</p>
+        <p className="mypage-credit-app">BONDYアプリ　v1.3.1</p>
         <div className="mypage-credit-block">
           <p className="mypage-credit-role">開発</p>
           <p className="mypage-credit-name">2023年度情報学部生　吉田 直人</p>

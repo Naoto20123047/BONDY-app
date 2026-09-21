@@ -345,10 +345,27 @@ service cloud.firestore {
       allow create: if isActive()
                     && request.resource.data.senderId == request.auth.uid;
 
-      // リアクションのみ。発言の改ざんはできない
-      allow update: if isActive() && changedOnly(['reactions']);
+      // リアクションのみ。発言の改ざんはできない。
+      // 取り消し済みのメッセージには新たにリアクションを付けられない
+      allow update: if isActive()
+                    && changedOnly(['reactions'])
+                    && resource.data.get('deleted', false) == false;
 
-      // チャットログは残す方針
+      // 本人による取り消し(v1.3.1)。
+      // 本文は実際に空にする。Firestore の読み取り権限はドキュメント単位で、
+      // 「本文は残したまま表示だけ隠す」はクライアントから読めてしまうため。
+      // senderId と createdAt は残るので「誰がいつ発言して、それを取り消した」
+      // という記録自体は消えない(チャットログは残す方針を維持)。
+      // 一度取り消したものは元に戻せない(deleted == false が条件)。
+      allow update: if isActive()
+                    && resource.data.senderId == request.auth.uid
+                    && resource.data.get('deleted', false) == false
+                    && changedOnly(['deleted', 'deletedAt', 'text', 'stamp'])
+                    && request.resource.data.deleted == true
+                    && request.resource.data.get('text', '') == ''
+                    && request.resource.data.get('stamp', '') == '';
+
+      // チャットログは残す方針(物理削除は禁止のまま)
       allow delete: if false;
     }
 

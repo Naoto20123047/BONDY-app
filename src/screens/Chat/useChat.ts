@@ -24,6 +24,8 @@ export interface ChatMessage {
   reactions: Record<string, string[]>;
   createdAt: string;
   isMine: boolean;
+  /** 本人が取り消したメッセージ。本文は空になっており、吹き出しだけが残る */
+  deleted: boolean;
 }
 
 interface RawMessage {
@@ -34,6 +36,7 @@ interface RawMessage {
   stamp?: string;
   reactions?: Record<string, string[]>;
   createdAt: string;
+  deleted?: boolean;
 }
 
 export function useChat() {
@@ -80,6 +83,7 @@ export function useChat() {
             reactions: m.reactions ?? {},
             createdAt: m.createdAt,
             isMine: m.senderId === member.id,
+            deleted: m.deleted === true,
           };
         });
         setMessages(ordered);
@@ -139,10 +143,42 @@ export function useChat() {
     }
   };
 
+  /**
+   * 自分のメッセージを取り消す。
+   * ドキュメント自体は消さず、本文だけを空にして deleted を立てる。
+   * 「誰がいつ発言したか」は残るので、後から会話を追えなくなることはない。
+   */
+  const deleteMessage = async (messageId: string) => {
+    if (!member) return false;
+    const target = messages.find((m) => m.id === messageId);
+    if (!target) return false;
+    if (target.senderId !== member.id || target.deleted) return false;
+
+    const patch: Record<string, unknown> = {
+      deleted: true,
+      deletedAt: new Date().toISOString(),
+    };
+    // 元から存在しないフィールドを増やさないよう、種別に応じて片方だけ空にする
+    if (target.type === "stamp") {
+      patch.stamp = "";
+    } else {
+      patch.text = "";
+    }
+
+    try {
+      await updateDoc(doc(db, "messages", messageId), patch);
+      return true;
+    } catch (e) {
+      console.error("メッセージの取り消しに失敗しました", e);
+      window.alert("取り消しに失敗しました。");
+      return false;
+    }
+  };
+
   const toggleReaction = async (messageId: string, emoji: string) => {
     if (!member) return;
     const target = messages.find((m) => m.id === messageId);
-    if (!target) return;
+    if (!target || target.deleted) return;
 
     const reactions: Record<string, string[]> = {};
     Object.entries(target.reactions).forEach(([key, ids]) => {
@@ -168,5 +204,13 @@ export function useChat() {
     }
   };
 
-  return { messages, loading, sending, sendMessage, sendStamp, toggleReaction } as const;
-}
+  return {
+    messages,
+    loading,
+    sending,
+    sendMessage,
+    sendStamp,
+    deleteMessage,
+    toggleReaction,
+  } as const;
+}
