@@ -505,3 +505,71 @@
   border-color: var(--color-accent);
   background: var(--color-accent-bg);
 }
+/* ===== 過去の演奏(アーカイブからの逆引き) ===== */
+.band-detail-perf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.band-detail-perf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.band-detail-perf:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+}
+
+.band-detail-perf-thumb {
+  width: 80px;
+  height: 45px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--color-surface-sub);
+}
+
+.band-detail-perf-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.band-detail-perf-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  /* 長い曲名で行が伸びないように省略する */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.band-detail-perf-meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.band-detail-perf-arrow {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  .band-detail-perf-arrow {
+    display: none;
+  }
+}

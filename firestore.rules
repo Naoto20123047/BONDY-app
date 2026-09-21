@@ -1,18 +1,367 @@
-rules_version='2'
+rules_version = '2';
+
+// =============================================================================
+// BONDYアプリ Firestore セキュリティルール
+//
+// 設計方針(v1.3.0 仕様書 C-3 に準拠)
+//  - members ドキュメントのID = Firebase Auth の UID。これを判定の起点にする
+//  - 在籍確認は status、役職確認は role、OB判定は isOB を参照する
+//  - メールアドレスのドメインは判定に使わない
+//    (v1.4.0 で外部メール連携を入れるとドメイン判定が破綻するため)
+//  - 「データは削除しない」方針に従い、delete は原則として閉じる
+//  - 明示的に許可していないコレクションは全て拒否(末尾の default deny)
+//
+// 読み取り回数について
+//  memberData() は get() を1回消費する。クエリ(list)に対するルール評価は
+//  クエリ単位で1回なので、1画面あたり数回程度に収まる。
+// =============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------------
+    // 共通ヘルパー
+    // ---------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myMemberPath() {
+      return /databases/$(database)/documents/members/$(request.auth.uid);
+    }
+
+    function hasMemberDoc() {
+      return isSignedIn() && exists(myMemberPath());
+    }
+
+    function memberData() {
+      return get(myMemberPath()).data;
+    }
+
+    // 在籍中のメンバー。アプリの通常操作はすべてこれが前提
+    function isActive() {
+      return hasMemberDoc() && memberData().status == 'active';
+    }
+
+    // 幹部または管理者
+    function isOfficer() {
+      return isActive() && memberData().role in ['幹部', '管理者'];
+    }
+
+    // 変更されたフィールドが指定した集合に収まっているか
+    function changedOnly(allowed) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
+    }
+
+    // 指定した投稿の投稿者が自分か(コメントの巻き込み削除の判定に使う)
+    function postAuthorIsMe(postId) {
+      return exists(/databases/$(database)/documents/posts/$(postId))
+             && get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------------
+    // members(部員名簿)
+    // ---------------------------------------------------------------------
+    match /members/{memberId} {
+
+      // 自分のドキュメントは常に読める(ログイン直後の AuthContext.loadMember が
+      // まだ status を知らない状態で読むため。ここを閉じると起動できない)
+      allow get: if isSignedIn() && (request.auth.uid == memberId || isActive());
+
+      // 一覧は在籍者のみ。退会者は名簿を引けない
+      allow list: if isActive();
+
+      // 新規登録(プロフィール登録画面)。自分の分だけ、かつ昇格できないようにする
+      allow create: if isSignedIn()
+                    && request.auth.uid == memberId
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.status == 'active'
+                    && request.resource.data.role == '一般メンバー'
+                    && request.resource.data.positions.size() == 0
+                    && request.resource.data.isOB == false
+                    // 完全削除された人が登録し直す場合もここを通る。
+                    // 過去の日付を入れて NEWバッジを避けることはできるが、
+                    // 実害が無いため検証はしない
+                    && request.resource.data.joinedAt is string;
+
+      allow update: if
+        // 幹部: 役職付与・降格・退会処理・OB登録など全般
+        isOfficer()
+        // 本人: プロフィール編集で変更できる項目のみ
+        || (isActive() && request.auth.uid == memberId
+            && changedOnly(['parts', 'nickname', 'avatarColor', 'avatarImageId', 'avatarThumb']))
+        // 本人: 退会(ソフト削除)。除籍は幹部しかできない
+        || (isActive() && request.auth.uid == memberId
+            && changedOnly(['status', 'withdrawnAt'])
+            && request.resource.data.status == 'withdrawn')
+        // 本人: 退会からの復帰。
+        // isActive() は使えない(退会中なので false になる)。
+        // 「今 withdrawn であること」を条件にすることで、除籍された人が
+        // 自分で active に戻すことを防いでいる
+        || (hasMemberDoc() && request.auth.uid == memberId
+            && resource.data.status == 'withdrawn'
+            && changedOnly(['status', 'withdrawnAt'])
+            && request.resource.data.status == 'active');
+
+      // 完全削除はユーザー履歴画面からのみ。在籍中の人は消せない
+      allow delete: if isOfficer()
+                    && resource.data.status in ['withdrawn', 'expelled'];
+    }
+
+    // ---------------------------------------------------------------------
+    // pages(アプリ内の編集可能なページ。今は紹介画面 pages/intro のみ)
+    //
+    // 読み取り条件が isActive() ではなく isSignedIn() なのは、
+    // **まだメンバーになっていない見学者に見せるページ**だから。
+    // Member ドキュメントが無い状態で読めないと紹介画面が出ない。
+    // アカウント作成は大学メールに限定されているため、読めるのは在学生に限られる。
+    // ---------------------------------------------------------------------
+    match /pages/{pageId} {
+      allow read: if isSignedIn();
+      allow write: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // archiveEvents / archiveItems(活動の記録)
+    //
+    // 映像・音源の実体は YouTube の限定公開にあり、ここが持つのは索引だけ。
+    // 読めるのは在籍者のみ(見学者には見せない)。登録は幹部だけが行う。
+    //
+    // 消さずに隠せるよう hidden フラグを持たせてあるので、通常の運用で
+    // delete を使うことはない。入力し間違えたものを片付けるためだけに開けている。
+    // ---------------------------------------------------------------------
+    match /archiveEvents/{eventId} {
+      allow read: if isActive();
+      allow create, update, delete: if isOfficer();
+    }
+
+    match /archiveItems/{itemId} {
+      allow read: if isActive();
+      allow create, update, delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // images(アバター画像)
+    //
+    // ドキュメントID = そのメンバーのUID。1人1枚で、差し替えは上書き。
+    // Member に埋め込まず別コレクションにしてあるのは、名簿一覧で全員分の
+    // 画像を読み込んでしまうのを避けるため。
+    // ---------------------------------------------------------------------
+    match /images/{imageId} {
+      allow read: if isActive();
+
+      // 自分の画像だけ作成・差し替えできる
+      allow create, update: if isActive()
+                            && request.auth.uid == imageId
+                            && request.resource.data.ownerId == request.auth.uid;
+
+      // 本人が外す場合と、幹部による整理
+      allow delete: if isActive() && (request.auth.uid == imageId || isOfficer());
+    }
+
+    // ---------------------------------------------------------------------
+    // bands(バンド)
+    // ---------------------------------------------------------------------
+    match /bands/{bandId} {
+      allow read: if isActive();
+
+      // 結成申請。必ず「申請中」で作られる(いきなり承認済みにはできない)
+      allow create: if isActive() && request.resource.data.status == '申請中';
+
+      allow update: if
+        // 幹部: 結成承認・解散承認・却下による差し戻し
+        isOfficer()
+        // メンバー: 加入/脱退(members)と解散申請(status)のみ
+        || (isActive()
+            && changedOnly(['members', 'status'])
+            && (request.resource.data.status == resource.data.status
+                || request.resource.data.status in ['解散申請中', '解散']));
+
+      // 結成申請の却下のみ(まだ承認されていないバンド)
+      allow delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // forms(フォーム定義)
+    // ---------------------------------------------------------------------
+    match /forms/{formId} {
+      allow read: if isActive();
+      allow create, update, delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // formResponses(フォーム回答)
+    // ---------------------------------------------------------------------
+    match /formResponses/{responseId} {
+      // 集計画面・回答画面ともに全回答を読む必要がある
+      allow read: if isActive();
+
+      allow create: if isActive()
+                    && request.resource.data.memberId == request.auth.uid;
+
+      // バンドフォームは同じバンドの誰でも上書きできる仕様のため、
+      // 在籍者であれば更新可とする(回答者本人に限定しない)
+      allow update: if isActive();
+
+      // フォーム削除時の回答一括削除
+      allow delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // dues(会費)
+    // ---------------------------------------------------------------------
+    match /dues/{duesId} {
+      // 本人はマイページで自分の納入状況を、幹部は会費画面で全員分を読む
+      allow read: if isActive();
+
+      // 納入の記録は幹部(会計担当)のみ
+      allow create, update: if isOfficer();
+
+      // 年度別に残す方針のため削除しない
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // equipment(機材台帳)
+    // ---------------------------------------------------------------------
+    match /equipment/{equipmentId} {
+      allow read: if isActive();
+      allow create, update, delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // equipmentRequests(機材貸出申請)
+    // ---------------------------------------------------------------------
+    match /equipmentRequests/{requestId} {
+      allow read: if isActive();
+
+      allow create: if isActive()
+                    && request.resource.data.memberId == request.auth.uid
+                    && request.resource.data.status == '申請中';
+
+      allow update: if
+        // 幹部(機材担当): 承認・却下・返却確認
+        isOfficer()
+        // 借りている本人: 返却報告のみ
+        || (isActive()
+            && resource.data.memberId == request.auth.uid
+            && changedOnly(['status', 'reportedAt'])
+            && request.resource.data.status == '返却報告済み');
+
+      allow delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // notifications(アプリ内通知)
+    // ---------------------------------------------------------------------
+    match /notifications/{notificationId} {
+      // 宛先が自分のものだけ。一覧取得は targetMemberId で絞っているため通る
+      allow read: if isActive() && resource.data.targetMemberId == request.auth.uid;
+
+      // 他のメンバー宛の通知を作る操作が各所にあるため、在籍者なら作成可
+      allow create: if isActive();
+
+      // 既読フラグのみ
+      allow update: if isActive()
+                    && resource.data.targetMemberId == request.auth.uid
+                    && changedOnly(['read']);
+
+      // 既読が5件を超えた分の自動削除
+      allow delete: if isActive()
+                    && resource.data.targetMemberId == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------------
+    // roleChangeRequests(役職変更の承認申請)
+    // ---------------------------------------------------------------------
+    match /roleChangeRequests/{requestId} {
+      // ホーム画面の承認待ち件数でも参照する
+      allow read: if isActive();
+
+      allow create: if isOfficer()
+                    && request.resource.data.proposedBy == request.auth.uid
+                    && request.resource.data.status == 'pending';
+
+      // 承認・却下
+      allow update: if isOfficer();
+
+      // 履歴として残す
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // posts(掲示板の投稿)
+    // ---------------------------------------------------------------------
+    match /posts/{postId} {
+      allow read: if isActive();
+
+      // 匿名投稿でも authorId は実名のまま保存する(既存方針)
+      allow create: if isActive()
+                    && request.resource.data.authorId == request.auth.uid;
+
+      // 解決フラグの切り替えは投稿者のみ
+      allow update: if isActive()
+                    && (resource.data.authorId == request.auth.uid || isOfficer());
+
+      allow delete: if isActive()
+                    && (resource.data.authorId == request.auth.uid
+                        || isOfficer()
+                        // 解決済み投稿の自動削除。掲示板を開いた人が実行する
+                        || resource.data.resolved == true);
+    }
+
+    // ---------------------------------------------------------------------
+    // comments(掲示板のコメント)
+    // ---------------------------------------------------------------------
+    match /comments/{commentId} {
+      allow read: if isActive();
+
+      allow create: if isActive()
+                    && request.resource.data.authorId == request.auth.uid;
+
+      // リアクションは誰でも付け外しできる。本文は変更させない
+      allow update: if isActive() && changedOnly(['reactions']);
+
+      allow delete: if isActive() && (
+        // 自分のコメント
+        resource.data.authorId == request.auth.uid
+        || isOfficer()
+        // 投稿削除に伴う巻き込み削除(投稿者がコメント→投稿の順で消す)
+        || postAuthorIsMe(resource.data.postId)
+        // 解決済み投稿の自動削除(投稿→コメントの順で消えるため既に不在)
+        || !exists(/databases/$(database)/documents/posts/$(resource.data.postId))
+      );
+    }
+
+    // ---------------------------------------------------------------------
+    // messages(全体チャット)
+    // ---------------------------------------------------------------------
+    match /messages/{messageId} {
+      allow read: if isActive();
+
+      allow create: if isActive()
+                    && request.resource.data.senderId == request.auth.uid;
+
+      // リアクションのみ。発言の改ざんはできない
+      allow update: if isActive() && changedOnly(['reactions']);
+
+      // チャットログは残す方針
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // todos(幹部TODO)
+    // ---------------------------------------------------------------------
+    match /todos/{todoId} {
+      allow read, create, update, delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // 上記以外は全て拒否
+    // ---------------------------------------------------------------------
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 8, 31);
+      allow read, write: if false;
     }
   }
 }

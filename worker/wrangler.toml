@@ -1,0 +1,29 @@
+name = "bondy-worker"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# 秘匿情報はここに書かない。すべて wrangler secret put で設定する。
+#   npx wrangler secret put TEAMS_WEBHOOK_URL
+#   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
+#   npx wrangler secret put IMAGE_SIGNING_KEY      … 画像URLの署名鍵(長いランダム文字列)
+[vars]
+FIREBASE_PROJECT_ID = "bondy-app-66ca4"
+
+# CORS を許可するオリジン(カンマ区切り)。開発時の Vite も含めてある。
+ALLOWED_ORIGINS = "https://bondy-app-66ca4.web.app,https://bondy-app-66ca4.firebaseapp.com,http://localhost:5173"
+
+# 紹介ページの写真の置き場所。
+#
+# Google Drive はサービスアカウントに保存容量が無く(403 storageQuotaExceeded)、
+# 回避策の共有ドライブと OAuth 委任はどちらも Google Workspace 契約が要るため使えない。
+# KV は Workers の無料枠(1GB / 読み取り10万回・書き込み1000回 per day)に含まれる。
+#
+# 作り方:
+#   npx wrangler kv namespace create IMAGES
+# 表示された id を下の行に貼る。この id は認証情報ではないので公開リポジトリに入れてよい。
+[[kv_namespaces]]
+binding = "IMAGES"
+id = "e802545673bd4c9393423edde9505f2e"
+
+[observability]
+enabled = true

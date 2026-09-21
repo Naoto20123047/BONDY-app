@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { doc, getDoc, updateDoc, collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteField, collection, addDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
+import { disableAuthAccount, enableAuthAccount, isWorkerConfigured } from "../../lib/workerClient";
 import type { Position, Member } from "../../Types/types";
 
 export const assignablePositions: Position[] = [
@@ -53,11 +54,23 @@ export function useMemberDetail(id: string | undefined) {
       .filter((oid) => !excludeIds.includes(oid));
   };
 
+  /**
+   * 退会処理(円満な離脱を幹部が代行する)
+   *
+   * 本人が自分で退会した場合と同じ状態にする。Auth アカウントは無効化しないので、
+   * 本人が再ログインすれば復帰画面から戻れる。
+   * 問題があって締め出したい場合は expelMember() を使うこと。
+   */
   const withdrawMember = async () => {
     if (!member) return;
-    const ok = window.confirm(`${member.name}さんを退会させます。データはユーザー履歴に残ります。よろしいですか?`);
+    const ok = window.confirm(
+      `${member.name}さんを退会処理します。\n\n` +
+        `本人が再ログインすれば復帰できる状態になります。` +
+        `戻れないようにする場合は「除籍」を使ってください。\n\nよろしいですか?`
+    );
     if (!ok) return;
     try {
+      // ソフト削除(Member ドキュメントは残す)
       await updateDoc(doc(db, "members", member.id), {
         status: "withdrawn",
         withdrawnAt: new Date().toISOString().slice(0, 10),
@@ -67,6 +80,98 @@ export function useMemberDetail(id: string | undefined) {
     } catch (e) {
       console.error("退会処理に失敗しました", e);
       window.alert("退会処理に失敗しました。");
+    }
+  };
+
+  /**
+   * 除籍(問題があって外す)
+   *
+   * A-3: Worker 経由で Auth アカウントを無効化し、再ログインを阻止する。
+   * Member ドキュメントは「データは削除しない」方針に従って残す。
+   * 復帰は幹部操作でのみ行う。
+   */
+  const expelMember = async () => {
+    if (!member) return;
+    const ok = window.confirm(
+      `${member.name}さんを除籍します。\n\n` +
+        `アカウントが無効化され、本人はログインできなくなります。` +
+        `戻す場合は幹部の操作が必要です。\n\n本当によろしいですか?`
+    );
+    if (!ok) return;
+    try {
+      await updateDoc(doc(db, "members", member.id), {
+        status: "expelled",
+        expelledAt: new Date().toISOString().slice(0, 10),
+      });
+
+      // members のドキュメントID = Firebase Auth の UID なので、そのまま渡せる
+      if (!isWorkerConfigured()) {
+        // Worker 未デプロイでも除籍自体は成立させる。
+        // この場合も AuthContext 側の status チェックでアプリには入れない。
+        console.warn("Workerが未設定のため、Authアカウントの無効化をスキップしました");
+        window.alert(
+          `${member.name}さんを除籍しました。\n\n` +
+            `ただしアカウントの無効化は行われていません(Worker未設定)。アプリには入れません。`
+        );
+      } else {
+        try {
+          await disableAuthAccount(member.id);
+          window.alert(`${member.name}さんを除籍しました。`);
+        } catch (e) {
+          console.error("Authアカウントの無効化に失敗しました", e);
+          window.alert(
+            `${member.name}さんを除籍しましたが、アカウントの無効化に失敗しました。\n\n` +
+              `アプリには入れない状態になっていますが、念のため時間をおいて同じ操作をもう一度行ってください。`
+          );
+        }
+      }
+
+      await fetchMember();
+    } catch (e) {
+      console.error("除籍に失敗しました", e);
+      window.alert("除籍に失敗しました。");
+    }
+  };
+
+  /**
+   * 在籍状態に戻す(幹部操作)
+   *
+   * 除籍された人を戻す場合は、Auth アカウントの無効化も解除する。
+   * 退会者は本人が復帰できるが、幹部がここから戻すこともできる。
+   */
+  const restoreMember = async () => {
+    if (!member) return;
+    const wasExpelled = member.status === "expelled";
+    const ok = window.confirm(
+      `${member.name}さんを在籍中に戻します。よろしいですか?`
+    );
+    if (!ok) return;
+    try {
+      await updateDoc(doc(db, "members", member.id), {
+        status: "active",
+        withdrawnAt: deleteField(),
+        expelledAt: deleteField(),
+      });
+
+      if (wasExpelled && isWorkerConfigured()) {
+        try {
+          await enableAuthAccount(member.id);
+        } catch (e) {
+          console.error("Authアカウントの有効化に失敗しました", e);
+          window.alert(
+            `${member.name}さんを在籍中に戻しましたが、アカウントの有効化に失敗しました。\n\n` +
+              `本人がログインできない状態のため、時間をおいて同じ操作をもう一度行ってください。`
+          );
+          await fetchMember();
+          return;
+        }
+      }
+
+      window.alert(`${member.name}さんを在籍中に戻しました。`);
+      await fetchMember();
+    } catch (e) {
+      console.error("復帰処理に失敗しました", e);
+      window.alert("復帰処理に失敗しました。");
     }
   };
 
@@ -161,6 +266,8 @@ export function useMemberDetail(id: string | undefined) {
     member,
     loading,
     withdrawMember,
+    expelMember,
+    restoreMember,
     registerOB,
     promoteToOfficer,
     proposeDismissOfficer,

@@ -1,0 +1,353 @@
+/* アーカイブの登録・編集(幹部のみ) */
+
+.aedit-content {
+  padding: 36px 44px 80px;
+  max-width: 760px;
+}
+
+.aedit-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+}
+
+.aedit-title {
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 28px;
+}
+
+/* ===== まとまり ===== */
+.aedit-group {
+  padding: 20px 22px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  margin-bottom: 20px;
+}
+
+.aedit-group-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0 0 14px;
+}
+
+.aedit-group-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.aedit-field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.aedit-row {
+  display: flex;
+  gap: 14px;
+}
+
+.aedit-label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.aedit-optional {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.aedit-input,
+.aedit-textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 14px;
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.aedit-textarea {
+  line-height: 1.8;
+  resize: vertical;
+}
+
+.aedit-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+  margin: 8px 0 0;
+}
+
+/* ===== 登録済みの1本 ===== */
+.aedit-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-page);
+  margin-bottom: 8px;
+}
+
+.aedit-item.is-hidden {
+  opacity: 0.55;
+}
+
+.aedit-item-thumb {
+  width: 80px;
+  height: 45px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--color-surface-sub);
+}
+
+.aedit-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.aedit-item-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  /* 長いタイトルで行が伸びないように省略する */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aedit-item-title i {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.aedit-item-meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.aedit-badge {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sub);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.aedit-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.aedit-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.aedit-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.aedit-icon.danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+/* ===== 保存 ===== */
+.aedit-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.aedit-save {
+  padding: 0 24px;
+  height: 42px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.aedit-save:hover {
+  background: var(--color-accent-dark);
+}
+
+.aedit-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.aedit-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 18px;
+  height: 42px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.aedit-note {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.8;
+  margin: 20px 0 0;
+}
+
+/* ===== 取り消し(普段は使わない操作) ===== */
+.aedit-danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+  padding: 18px 20px;
+  border: 0.5px solid var(--color-danger-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.aedit-danger-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.aedit-danger-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-danger);
+}
+
+.aedit-danger-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+.aedit-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 0 18px;
+  height: 40px;
+  border: 0.5px solid var(--color-danger-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.aedit-danger-btn:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.aedit-danger-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .aedit-content {
+    padding: 20px 20px 60px;
+  }
+
+  .aedit-danger {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .aedit-danger-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .aedit-group {
+    padding: 16px;
+  }
+
+  .aedit-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* 操作ボタンが多いので、サムネの下に折り返す */
+  .aedit-item {
+    flex-wrap: wrap;
+  }
+
+  .aedit-item-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .aedit-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .aedit-save,
+  .aedit-ghost {
+    width: 100%;
+    justify-content: center;
+  }
+}

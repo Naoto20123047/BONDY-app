@@ -2,6 +2,7 @@ import { useState } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
+import { notifyNewPost } from "../../lib/teamsNotify";
 import type { PostCategory } from "../../Types/types";
 
 export function useCreatePost() {
@@ -24,7 +25,7 @@ export function useCreatePost() {
     }
     setSubmitting(true);
     try {
-      await addDoc(collection(db, "posts"), {
+      const postRef = await addDoc(collection(db, "posts"), {
         authorId: member.id,
         category,
         title: title.trim(),
@@ -33,6 +34,17 @@ export function useCreatePost() {
         resolved: false,
         isAnonymous,
       });
+
+      // Teams に通知(失敗しても投稿は成立させる)。
+      // 匿名投稿は notifyNewPost 側で弾かれるため飛ばない
+      await notifyNewPost({
+        postId: postRef.id,
+        category,
+        title: title.trim(),
+        authorName: member.name,
+        isAnonymous,
+      });
+
       onDone();
     } catch (e) {
       console.error("投稿の作成に失敗しました", e);

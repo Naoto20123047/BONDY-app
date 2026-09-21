@@ -9,7 +9,12 @@ import "./profileSetupScreen.css";
 // 開志専門職大学の学部
 const FACULTIES = ["事業創造学部", "情報学部", "アニメ・マンガ学部"];
 
-export default function ProfileSetupScreen() {
+interface ProfileSetupScreenProps {
+  /** 紹介画面に戻る。加入フローから開かれたときだけ渡される */
+  onBack?: () => void;
+}
+
+export default function ProfileSetupScreen({ onBack }: ProfileSetupScreenProps) {
   const { firebaseUser, refreshMember } = useAuth();
 
   const [name, setName] = useState("");
@@ -68,6 +73,8 @@ export default function ProfileSetupScreen() {
         isOB: false,
         duesPaid: false,
         status: "active",
+        // NEWバッジの判定に使う。今年度に加入した人だけバッジが出る
+        joinedAt: new Date().toISOString().slice(0, 10),
       });
       await refreshMember();
     } catch (e) {
@@ -85,6 +92,12 @@ export default function ProfileSetupScreen() {
   return (
     <div className="setup-page">
       <div className="setup-card">
+        {onBack && (
+          <button className="setup-back" onClick={onBack}>
+            <i className="ti ti-arrow-left" /> 紹介に戻る
+          </button>
+        )}
+
         <h2 className="setup-title">プロフィール登録</h2>
         <p className="setup-desc">はじめに、あなたの情報を登録してください。</p>
 

@@ -3,7 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, doc, query, where } from "fireb
 import * as XLSX from "xlsx";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
-import { calcGrade } from "../../lib/grade";
+import { calcGrade, currentFiscalYear } from "../../lib/grade";
 import type { Member } from "../../Types/types";
 
 export interface DuesRow {
@@ -16,6 +16,7 @@ export interface DuesRow {
   isOB: boolean;
   paid: boolean;
   avatarColor?: string;
+  avatarThumb?: string;
 }
 
 interface DuesRecord {
@@ -24,12 +25,6 @@ interface DuesRecord {
   fiscalYear: number;
   paid: boolean;
 }
-
-// 現在の年度(4月始まり)
-const currentFiscalYear = () => {
-  const now = new Date();
-  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-};
 
 export function useDues() {
   const { member: currentMember } = useAuth();
@@ -124,6 +119,7 @@ export function useDues() {
         isOB: m.isOB,
         paid: record ? record.paid : false,
         avatarColor: m.avatarColor,
+        avatarThumb: m.avatarThumb,
       };
     })
     // 現役を先に、OBを後に並べる
@@ -198,4 +194,4 @@ export function useDues() {
     faculties,
     exportExcel,
   } as const;
-}
+}

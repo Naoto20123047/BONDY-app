@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import "./rosterScreen.css";
 import { useRoster } from "./useRoster";
-import { calcGrade } from "../../lib/grade";
+import { calcGrade, isNewMember } from "../../lib/grade";
 import { formatParts } from "../../lib/parts";
-import { avatarStyle } from "../../lib/avatarColors";
+import MemberAvatar from "../Layout/MemberAvatar";
 
 export default function RosterScreen() {
   const navigate = useNavigate();
@@ -74,13 +74,19 @@ export default function RosterScreen() {
               className="roster-row"
               onClick={() => navigate(`/roster/${m.id}`)}
             >
-              <div className="roster-avatar" style={avatarStyle(m.avatarColor)}>
-                {m.name.charAt(0)}
-              </div>
+              {/* 一覧なので原寸は読まない(avatarImageId は渡さない) */}
+              <MemberAvatar
+                name={m.name}
+                avatarColor={m.avatarColor}
+                avatarThumb={m.avatarThumb}
+                className="roster-avatar"
+              />
               <div className="roster-info">
                 <span className="roster-name">
                   {m.name}
                   {m.nickname && <span className="roster-nickname">（{m.nickname}）</span>}
+                  {/* 今年度に加入した人だけ。投稿やチャットには出さない */}
+                  {isNewMember(m.joinedAt) && <span className="roster-new">NEW</span>}
                 </span>
                 <span className="roster-meta">
                   {m.studentId} ・ {calcGrade(m.enrollmentYear, m.isOB)} ・ {formatParts(m.parts)}

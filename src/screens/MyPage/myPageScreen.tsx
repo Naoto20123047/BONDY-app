@@ -3,7 +3,8 @@ import "./myPageScreen.css";
 import { useMyPage } from "./useMyPage";
 import { calcGrade } from "../../lib/grade";
 import { formatParts } from "../../lib/parts";
-import { avatarStyle } from "../../lib/avatarColors";
+import { formTypeLabel } from "../../lib/formLabel";
+import MemberAvatar from "../Layout/MemberAvatar";
 
 export default function MyPageScreen() {
   const navigate = useNavigate();
@@ -24,9 +25,13 @@ export default function MyPageScreen() {
         {/* 左カラム */}
         <div className="mypage-col-left">
           <div className="mypage-head">
-            <div className="mypage-avatar" style={avatarStyle(member.avatarColor)}>
-              {member.name.charAt(0)}
-            </div>
+            <MemberAvatar
+              name={member.name}
+              avatarColor={member.avatarColor}
+              avatarThumb={member.avatarThumb}
+              avatarImageId={member.avatarImageId}
+              className="mypage-avatar"
+            />
             <div>
               <p className="mypage-name">
                 {member.name}
@@ -77,6 +82,14 @@ export default function MyPageScreen() {
               <div className="mypage-info-row">
                 <dt>入学年度</dt>
                 <dd>{member.enrollmentYear}年度</dd>
+              </div>
+              <div className="mypage-info-row">
+                <dt>加入日</dt>
+                <dd>
+                  {member.joinedAt ?? (
+                    <span className="mypage-info-none">未記録</span>
+                  )}
+                </dd>
               </div>
               <div className="mypage-info-row">
                 <dt>パート</dt>
@@ -168,10 +181,26 @@ export default function MyPageScreen() {
               <p className="mypage-empty">回答済みのフォームはありません</p>
             ) : (
               answeredForms.map((f) => (
-                <div key={f.id} className="mypage-form">
-                  <span className="mypage-form-title">{f.title}</span>
-                  <span className="mypage-form-date">{f.answeredAt}</span>
-                </div>
+                // タップするとそのフォームの回答画面へ。
+                // 締切後は入力が無効化されるため、回答内容の確認として使える。
+                <button
+                  key={f.id}
+                  className="mypage-form"
+                  onClick={() => navigate(`/forms/${f.id}`)}
+                >
+                  <span className="mypage-form-info">
+                    <span
+                      className={`mypage-form-tag ${f.type === "イベント" ? "event" : "survey"}`}
+                    >
+                      {formTypeLabel(f.type)}
+                    </span>
+                    <span className="mypage-form-title">{f.title}</span>
+                  </span>
+                  <span className="mypage-form-right">
+                    <span className="mypage-form-date">{f.answeredAt} 回答</span>
+                    <i className="ti ti-chevron-right mypage-form-chevron" />
+                  </span>
+                </button>
               ))
             )}
           </div>

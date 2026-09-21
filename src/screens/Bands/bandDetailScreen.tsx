@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import "./bandDetailScreen.css";
 import { useBandDetail } from "./useBandDetail";
 import { useAuth } from "../../lib/AuthContext";
+import { youtubeThumbUrl } from "../../lib/archive";
 
 export default function BandDetailScreen() {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export default function BandDetailScreen() {
     addKeyword,
     setAddKeyword,
     isMyBand,
+    performances,
     loading,
     addMember,
     removeMember,
@@ -160,6 +162,35 @@ export default function BandDetailScreen() {
           ))}
         </div>
       </div>
+
+      {performances.length > 0 && (
+        <div className="band-detail-section">
+          <p className="band-detail-label">過去の演奏({performances.length}本)</p>
+          <div className="band-detail-perf-list">
+            {performances.map((item) => (
+              <button
+                key={item.id}
+                className="band-detail-perf"
+                onClick={() => navigate(`/archive/${item.eventId}`)}
+              >
+                <img
+                  className="band-detail-perf-thumb"
+                  src={youtubeThumbUrl(item.youtubeId)}
+                  alt=""
+                  loading="lazy"
+                />
+                <span className="band-detail-perf-main">
+                  <span className="band-detail-perf-title">{item.title}</span>
+                  <span className="band-detail-perf-meta">
+                    {item.eventTitle}・{item.eventDate}
+                  </span>
+                </span>
+                <i className="ti ti-chevron-right band-detail-perf-arrow" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isMyBand && band.status !== "解散申請中" && band.status !== "解散" && (
         <div className="band-detail-actions">

@@ -1,0 +1,79 @@
+/* YouTube の埋め込み。押されるまではサムネイルだけを出す */
+
+.yt {
+  width: 100%;
+}
+
+.yt-facade,
+.yt-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: var(--radius-card);
+  background: #000;
+}
+
+.yt-facade {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+
+.yt-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 再生ボタン */
+.yt-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 123, 108, 0.92);
+  color: #fff;
+  font-size: 26px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  transition: transform var(--transition), background var(--transition);
+}
+
+.yt-facade:hover .yt-play {
+  background: var(--color-accent);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+/* 再生できないときの逃げ道。主役ではないので右端に小さく置く */
+.yt-external {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.yt-external:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .yt-play {
+    width: 52px;
+    height: 52px;
+    font-size: 21px;
+  }
+}

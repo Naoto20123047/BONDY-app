@@ -134,6 +134,7 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -141,6 +142,52 @@
   font-weight: 500;
   flex-shrink: 0;
   transition: background 0.2s, color 0.2s;
+}
+
+.edit-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.edit-avatar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edit-image-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.edit-image-btn:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.edit-image-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.edit-file-input {
+  display: none;
+}
+
+.edit-image-error {
+  font-size: 12px;
+  color: var(--color-danger);
+  margin: 10px 0 0;
 }
 
 .edit-colors {

@@ -4,9 +4,18 @@
   background: var(--color-page);
 }
 
+/* サイドバーは画面に貼り付けて、本文だけがスクロールするようにする。
+   普通のフレックス要素のままだと、ページ全体と一緒に流れて
+   長い画面ではメニューが見えなくなる。
+   項目が増えて画面の高さに収まらない場合は、中だけがスクロールする */
 .layout-sidebar {
   width: var(--sidebar-width);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
   padding: 20px 16px;

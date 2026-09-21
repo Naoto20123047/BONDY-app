@@ -4,8 +4,8 @@ import "./postDetailScreen.css";
 import { usePostDetail } from "./usePostDetail";
 import { useAuth } from "../../lib/AuthContext";
 import { emojiStamps, imageStamps, quickReactions } from "../../lib/stamps";
-import { avatarStyle } from "../../lib/avatarColors";
 import { buildAnonLabelMap, anonAvatarColorId } from "../../lib/anon";
+import MemberAvatar from "../Layout/MemberAvatar";
 
 const categoryClass = (c: string) => {
   switch (c) {
@@ -99,10 +99,15 @@ export default function PostDetailScreen() {
     return (anonLabelMap[c.authorId] ?? "匿名").slice(-1);
   };
 
-  const commentAvatarStyle = (c: (typeof comments)[number]) => {
-    if (!post.isAnonymous) return avatarStyle(memberMap[c.authorId]?.avatarColor);
-    return avatarStyle(anonAvatarColorId(anonLabelMap[c.authorId] ?? "匿名"));
+  const commentAvatarColor = (c: (typeof comments)[number]) => {
+    if (!post.isAnonymous) return memberMap[c.authorId]?.avatarColor;
+    return anonAvatarColorId(anonLabelMap[c.authorId] ?? "匿名");
   };
+
+  // 匿名スレッドではアバター画像を使わない。実名が推測されるため
+  // (アイコンカラーを使わないのと同じ理由)
+  const commentAvatarThumb = (c: (typeof comments)[number]) =>
+    post.isAnonymous ? undefined : memberMap[c.authorId]?.avatarThumb;
 
   const handleComment = async () => {
     const ok = await addComment(commentText);
@@ -228,12 +233,13 @@ export default function PostDetailScreen() {
                   key={c.id}
                   className={`post-detail-comment ${isPickerOpen ? "picker-open" : ""}`}
                 >
-                  <div
+                  <MemberAvatar
+                    name={c.authorName}
+                    label={commentAvatarLabel(c)}
+                    avatarColor={commentAvatarColor(c)}
+                    avatarThumb={commentAvatarThumb(c)}
                     className="post-detail-comment-avatar"
-                    style={commentAvatarStyle(c)}
-                  >
-                    {commentAvatarLabel(c)}
-                  </div>
+                  />
                   <div className="post-detail-comment-body">
                     <div className="post-detail-comment-head">
                       <span className="post-detail-comment-author">{commentDisplayName(c)}</span>

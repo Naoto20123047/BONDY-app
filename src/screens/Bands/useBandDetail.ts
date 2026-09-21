@@ -4,7 +4,8 @@ import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { calcGrade } from "../../lib/grade";
-import type { Band, Member } from "../../Types/types";
+import { listItemsByBand } from "../../lib/archive";
+import type { Band, Member, ArchiveItem } from "../../Types/types";
 
 export interface BandMemberView {
   memberId: string;
@@ -26,6 +27,8 @@ export function useBandDetail(id: string | undefined) {
   const [memberViews, setMemberViews] = useState<BandMemberView[]>([]);
   const [addableMembers, setAddableMembers] = useState<AddableMember[]>([]);
   const [addKeyword, setAddKeyword] = useState("");
+  /** このバンドが過去に出演した記録(アーカイブからの逆引き) */
+  const [performances, setPerformances] = useState<ArchiveItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchBand = async () => {
@@ -77,6 +80,14 @@ export function useBandDetail(id: string | undefined) {
             faculty: m.faculty,
           }))
       );
+      // 過去の演奏。アーカイブが空でもバンド画面は成立するので、
+      // ここが失敗しても全体を止めない
+      try {
+        setPerformances(await listItemsByBand(bandData.id));
+      } catch (e) {
+        console.error("過去の演奏の取得に失敗しました", e);
+        setPerformances([]);
+      }
     } catch (e) {
       console.error("バンド情報の取得に失敗しました", e);
     } finally {
@@ -203,6 +214,7 @@ export function useBandDetail(id: string | undefined) {
     addKeyword,
     setAddKeyword,
     isMyBand,
+    performances,
     loading,
     addMember,
     removeMember,

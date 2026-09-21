@@ -1,0 +1,104 @@
+/* サイドバーも下部ナビも出さない、独立した1枚のページ */
+.intro-view {
+  min-height: 100vh;
+  background: var(--color-surface);
+}
+
+.intro-view-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+/* ページの上に浮かせる操作バー。
+   濃いヒーローの上にも白い面の上にも乗るので、
+   白い半透明+境界線+影で、どちらでも読めるようにしてある */
+.intro-view-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 20px;
+  pointer-events: none;
+}
+
+.intro-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+  padding: 10px 18px;
+  border: 0.5px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-accent-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+}
+
+.intro-view-btn:hover {
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+/* 編集ボタンが無いときも「戻る」を左端に保つ */
+.intro-view-bar > .intro-view-btn:only-child {
+  margin-right: auto;
+}
+
+/* ページの締め。見学者側の CTA と同じ濃いグリーンで終わらせる */
+.intro-view-footer {
+  position: relative;
+  overflow: hidden;
+  padding: 56px 24px 64px;
+  background: linear-gradient(158deg, #0F7B6C 0%, #0A4A40 100%);
+}
+
+.intro-view-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 80% at 50% 50%, #000, transparent 80%);
+  mask-image: radial-gradient(ellipse 60% 80% at 50% 50%, #000, transparent 80%);
+  pointer-events: none;
+}
+
+.intro-view-note {
+  position: relative;
+  max-width: 680px;
+  margin: 0 auto;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.9;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .intro-view-bar {
+    padding: 12px 14px;
+  }
+
+  .intro-view-btn {
+    padding: 9px 14px;
+    font-size: 12px;
+  }
+
+  .intro-view-footer {
+    padding: 44px 20px 52px;
+  }
+}

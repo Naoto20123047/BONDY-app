@@ -1,0 +1,109 @@
+/* 見学者向けの紹介画面。
+   タイトル・セクションの見た目は IntroBody(introBody.css)が持つ。
+   ここは下部の「加入する」だけを受け持つ */
+
+.intro-join-page {
+  min-height: 100vh;
+  background: var(--color-surface);
+}
+
+.intro-join-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+/* ページの締め。ヒーローと同じ濃いグリーンに戻して、
+   上から下まで1枚のサイトとして終わらせる */
+.intro-join-cta {
+  position: relative;
+  overflow: hidden;
+  padding: 76px 24px 88px;
+  text-align: center;
+  color: #fff;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 0%, rgba(52, 211, 184, 0.30), transparent 65%),
+    linear-gradient(158deg, #0F7B6C 0%, #0A4A40 100%);
+}
+
+.intro-join-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 45%, #000, transparent 80%);
+  mask-image: radial-gradient(ellipse 60% 70% at 50% 45%, #000, transparent 80%);
+  pointer-events: none;
+}
+
+.intro-join-cta-inner {
+  position: relative;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.intro-join-cta-title {
+  font-size: clamp(21px, 2.6vw, 28px);
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 12px;
+}
+
+.intro-join-cta-text {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.9;
+  margin: 0 0 30px;
+}
+
+.intro-join-btn {
+  width: 100%;
+  height: 54px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: var(--color-accent-text);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+.intro-join-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.intro-decline-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-pill);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.intro-decline-btn:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.intro-join-note {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.66);
+  line-height: 1.8;
+  margin: 20px 0 0;
+}
+
+@media (max-width: 768px) {
+  .intro-join-cta {
+    padding: 52px 20px 60px;
+  }
+}

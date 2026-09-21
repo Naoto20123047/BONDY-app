@@ -21,7 +21,9 @@ const navItems: NavItem[] = [
   { path: "/roster", label: "名簿", icon: "ti-users", officerOnly: false },
   { path: "/forms", label: "フォーム", icon: "ti-clipboard-list", officerOnly: false },
   { path: "/equipment", label: "機材", icon: "ti-speakerphone", officerOnly: false },
+  { path: "/archive", label: "アーカイブ", icon: "ti-player-play", officerOnly: false },
   { path: "/mypage", label: "マイページ", icon: "ti-user-circle", officerOnly: false },
+  { path: "/intro", label: "サークル紹介", icon: "ti-info-circle", officerOnly: false },
   { path: "/admin", label: "幹部管理", icon: "ti-shield-check", officerOnly: true },
   { path: "/todo", label: "幹部TODO", icon: "ti-checklist", officerOnly: true },
 ];
@@ -147,4 +149,4 @@ return (
       <InstallPrompt />
     </div>
   );
-}
+}

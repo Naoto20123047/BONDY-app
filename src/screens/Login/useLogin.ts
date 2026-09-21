@@ -5,8 +5,10 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "../../lib/firebase";
+import { useAuth } from "../../lib/AuthContext";
 
 export function useLogin() {
+  const { expelledBlocked, clearExpelledBlocked } = useAuth();
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,6 +48,8 @@ export function useLogin() {
   const handleSubmit = async () => {
     setError(null);
     setInfo(null);
+    // 前回の「除籍済みで弾かれた」表示を消してから再試行する
+    clearExpelledBlocked();
     if (!validate()) return;
 
     setLoading(true);
@@ -61,7 +65,11 @@ export function useLogin() {
     } catch (e) {
       const code = (e as { code?: string }).code ?? "";
       if (mode === "login") {
-        if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+        // A-3: 除籍で Auth アカウントを無効化したアカウント。
+        // 退会(本人の意思)は無効化していないので、ここには来ない
+        if (code === "auth/user-disabled") {
+          setError("このアカウントは現在ご利用いただけません。心当たりがない場合は幹部に連絡してください。");
+        } else if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
           setError("メールアドレスまたはパスワードが正しくありません。");
         } else {
           setError("ログインに失敗しました。時間をおいて再度お試しください。");
@@ -89,6 +97,7 @@ export function useLogin() {
   const changeMode = (newMode: "login" | "signup" | "reset") => {
     setError(null);
     setInfo(null);
+    clearExpelledBlocked();
     setMode(newMode);
   };
 
@@ -103,5 +112,6 @@ export function useLogin() {
     loading,
     handleSubmit,
     changeMode,
+    expelledBlocked,
   } as const;
 }

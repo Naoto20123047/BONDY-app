@@ -1,0 +1,561 @@
+/* 紹介ページ。アプリの画面ではなくランディングページとして組んである。
+   外側(全画面かカードの中か)は使う側が決める。
+
+   構造
+     .intro-lp-hero   … 濃いグリーンの見出し。写真を敷くこともできる
+     .intro-lp-band   … 背景色が同じブロックをまとめた全幅の帯
+       .intro-lp-grid … 12列グリッド
+         .intro-lp-cell … 1ブロック。--span 列分の幅を取る
+
+   768px以下では --span を無視して必ず1列に積み直す。
+   PCで作った配置がスマホで崩れないようにするため、座標は持たせていない */
+
+.intro-lp {
+  width: 100%;
+}
+
+/* ===== ヒーロー ===== */
+.intro-lp-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 88px 24px 96px;
+  text-align: center;
+  color: #fff;
+  background:
+    radial-gradient(ellipse 85% 65% at 18% 0%, rgba(52, 211, 184, 0.38), transparent 62%),
+    radial-gradient(ellipse 70% 70% at 88% 100%, rgba(6, 54, 46, 0.75), transparent 62%),
+    linear-gradient(158deg, #0F7B6C 0%, #0A4A40 100%);
+}
+
+/* 背景写真 */
+.intro-lp-hero-photo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+}
+
+/* 写真の上に色の付いた膜はかけない。写真はそのままの色で見せて、
+   文字が読めるかどうかは「文字の裏だけをぼかす」方で担保する。
+   (全面に膜をかけると、どんな写真を入れても同じ色に沈んでしまう)
+
+   写真が読み込めなかったときの下地 */
+.intro-lp-hero.has-photo {
+  background: linear-gradient(168deg, #0F7B6C 0%, #0A4A40 100%);
+}
+
+.intro-lp-hero-inner {
+  position: relative;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* ロゴはページの見出しそのものとして大きく置く。
+   小さく隅に置くと、せっかくの手書きワードマークが読めないため */
+.intro-lp-mark {
+  position: relative;
+  width: min(400px, 76%);
+  margin: 0 auto 26px;
+}
+
+/* ロゴの裏だけをぼかす板。
+   背景写真の絵柄が細かいとロゴが埋もれるので、そこだけ均す。
+   マスクで縁を溶かしてあるため、四角い板としては見えない。
+   backdrop-filter が使えない環境でも、下の暗いグラデーションだけで
+   最低限のコントラストは確保できる */
+.intro-lp-mark-blur {
+  position: absolute;
+  inset: -16% -12%;
+  z-index: -1;
+  border-radius: 50%;
+  -webkit-backdrop-filter: blur(22px) saturate(0.9);
+  backdrop-filter: blur(22px) saturate(0.9);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.16) 45%,
+    transparent 72%
+  );
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 42%, transparent 74%);
+  mask-image: radial-gradient(ellipse at center, #000 42%, transparent 74%);
+  pointer-events: none;
+}
+
+/* 写真が無いときは下地が平らなので、ぼかす意味が無い。
+   暗い輪だけが浮いて見えるだけなので、まるごと消す */
+.intro-lp-hero:not(.has-photo) .intro-lp-mark-blur {
+  display: none;
+}
+
+.intro-lp-logo {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+  /* 濃い面に載せるので、少しだけ浮かせて輪郭を出す */
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35));
+}
+
+.intro-lp-title {
+  font-size: clamp(22px, 3.2vw, 32px);
+  font-weight: 600;
+  line-height: 1.5;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.2);
+}
+
+.intro-lp-lead {
+  font-size: clamp(15px, 1.6vw, 17px);
+  color: rgba(255, 255, 255, 0.86);
+  line-height: 2;
+  margin: 18px 0 0;
+}
+
+/* 写真の上では、タイトルと本文の裏もロゴと同じように局所的にぼかす。
+   全面に膜をかける代わりに、文字がある所だけ下地を均す */
+.intro-lp-hero.has-photo .intro-lp-title,
+.intro-lp-hero.has-photo .intro-lp-lead {
+  position: relative;
+  /* 文字の際に短い影を付けると、明るい絵柄の上でも輪郭が残る。
+     大きい影だけだと、白い部分に重なったときに輪郭が溶ける */
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.65),
+    0 2px 16px rgba(0, 0, 0, 0.5);
+}
+
+.intro-lp-hero.has-photo .intro-lp-lead {
+  color: #fff;
+}
+
+.intro-lp-hero.has-photo .intro-lp-title::before,
+.intro-lp-hero.has-photo .intro-lp-lead::before {
+  content: "";
+  position: absolute;
+  /* 文字より一回り大きくとって、溶ける部分が文字に掛からないようにする */
+  inset: -1.1em -3.4em;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(24px) saturate(0.95);
+  backdrop-filter: blur(24px) saturate(0.95);
+  background: rgba(0, 0, 0, 0.3);
+  /* 芯を小さく・溶けを長くとる。ロゴの裏と同じ当て方にして、
+     板の輪郭が出ないようにしている */
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 72%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 72%);
+  pointer-events: none;
+}
+
+/* 本文は複数行に渡るので、左右をもう少し広くとる */
+.intro-lp-hero.has-photo .intro-lp-lead::before {
+  inset: -1em -2.8em;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+/* ===== 帯 ===== */
+.intro-lp-band {
+  position: relative;
+  overflow: hidden;
+  padding: 84px 24px;
+  background: var(--color-surface);
+}
+
+.intro-lp-band.tone-tint {
+  background: var(--color-page);
+}
+
+/* 色の付いた面にだけ、大きなぼかし円を置いて動きを出す */
+.intro-lp-band.tone-tint::before {
+  content: "";
+  position: absolute;
+  top: -90px;
+  right: -90px;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(15, 123, 108, 0.13), transparent 70%);
+  pointer-events: none;
+}
+
+.intro-lp-band.tone-dark {
+  background:
+    radial-gradient(ellipse 70% 80% at 15% 0%, rgba(52, 211, 184, 0.22), transparent 65%),
+    linear-gradient(158deg, #0F7B6C 0%, #0A4A40 100%);
+  color: #fff;
+}
+
+/* ===== グリッド ===== */
+.intro-lp-grid {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 34px 32px;
+  align-items: start;
+}
+
+.intro-lp-cell {
+  /* span は 1〜12。introPage.ts の clampSpan で丸めてある */
+  grid-column: span var(--span, 12);
+  /* グリッドの子は既定で min-width:auto のため、長い単語で列が広がるのを防ぐ */
+  min-width: 0;
+}
+
+/* ===== 文字まわり ===== */
+.intro-lp-h1 {
+  font-size: clamp(24px, 3.4vw, 34px);
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.45;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.intro-lp-h2 {
+  font-size: clamp(19px, 2.2vw, 23px);
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.intro-lp-heading {
+  font-size: clamp(20px, 2.6vw, 27px);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 20px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+}
+
+/* 見出しの下の短いライン。罫線より軽く見せたいのでグラデーション */
+.intro-lp-heading::after {
+  content: "";
+  display: block;
+  width: 46px;
+  height: 3px;
+  margin-top: 14px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-accent), rgba(15, 123, 108, 0.12));
+}
+
+.intro-lp-text {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  line-height: 2.05;
+  margin: 0;
+  /* 幹部が入れた改行をそのまま反映する */
+  white-space: pre-wrap;
+}
+
+.is-center {
+  text-align: center;
+}
+
+.is-right {
+  text-align: right;
+}
+
+/* 見出し下のラインも文字に合わせて寄せる */
+.is-center .intro-lp-heading::after {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.is-right .intro-lp-heading::after {
+  margin-left: auto;
+}
+
+/* 濃い帯の上では文字を白に寄せる */
+.tone-dark .intro-lp-h1,
+.tone-dark .intro-lp-h2,
+.tone-dark .intro-lp-heading {
+  color: #fff;
+}
+
+.tone-dark .intro-lp-text {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.tone-dark .intro-lp-heading::after {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.15));
+}
+
+/* ===== 写真 ===== */
+.intro-lp-fig {
+  margin: 0;
+}
+
+.intro-lp-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-md);
+  background: var(--color-surface-sub);
+}
+
+/* 署名URLが返ってくるまでの箱。高さが後から変わらないようにしておく */
+.intro-lp-img-skeleton {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-card);
+  background: linear-gradient(
+    100deg,
+    var(--color-surface-sub) 30%,
+    rgba(255, 255, 255, 0.6) 50%,
+    var(--color-surface-sub) 70%
+  );
+  background-size: 250% 100%;
+  animation: intro-lp-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes intro-lp-shimmer {
+  0% {
+    background-position: 130% 0;
+  }
+  100% {
+    background-position: -30% 0;
+  }
+}
+
+.intro-lp-caption {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+  margin: 10px 2px 0;
+}
+
+.tone-dark .intro-lp-caption {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* ===== 写真 + 文章 ===== */
+.intro-lp-it {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 36px;
+  align-items: center;
+}
+
+/* 画像を右に置く */
+.intro-lp-it.flip .intro-lp-it-fig {
+  order: 2;
+}
+
+.intro-lp-it-fig .intro-lp-img {
+  aspect-ratio: 4 / 3;
+}
+
+/* ===== 写真を並べる ===== */
+.intro-lp-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.intro-lp-gallery-item .intro-lp-img {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ===== カード ===== */
+.intro-lp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.intro-lp-card {
+  padding: 20px 22px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.intro-lp-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 8px;
+}
+
+.intro-lp-card-body {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.9;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.tone-dark .intro-lp-card {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.tone-dark .intro-lp-card-title {
+  color: #fff;
+}
+
+.tone-dark .intro-lp-card-body {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ===== 数字 ===== */
+.intro-lp-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 20px;
+  text-align: center;
+}
+
+.intro-lp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.intro-lp-stat-value {
+  font-size: clamp(34px, 5vw, 50px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent);
+  letter-spacing: -0.01em;
+}
+
+.intro-lp-stat-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.tone-dark .intro-lp-stat-value {
+  color: #fff;
+}
+
+.tone-dark .intro-lp-stat-label {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ===== スクロールで出す =====
+   出方はブロックごとに幹部が選ぶ(data-effect)。
+   JS 側は「見えたら is-in を付ける」だけで、動きはここが持つ。
+   --delay は横に並べたブロックを順番に出すための待ち時間 */
+.intro-lp [data-effect] {
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.3, 1);
+  transition-delay: var(--delay, 0ms);
+  /* 動く前から場所を取らせて、出るときに行がずれないようにする */
+  will-change: opacity, transform;
+}
+
+.intro-lp [data-effect="fade"] {
+  opacity: 0;
+}
+
+.intro-lp [data-effect="up"] {
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+.intro-lp [data-effect="left"] {
+  opacity: 0;
+  transform: translateX(-44px);
+}
+
+.intro-lp [data-effect="right"] {
+  opacity: 0;
+  transform: translateX(44px);
+}
+
+.intro-lp [data-effect="zoom"] {
+  opacity: 0;
+  transform: scale(0.93);
+}
+
+.intro-lp [data-effect].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* 「なし」は最初から出しておく。上の指定を打ち消すのでここに置く */
+.intro-lp [data-effect="none"] {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+/* ===== スマホ ===== */
+@media (max-width: 768px) {
+  .intro-lp-hero {
+    padding: 72px 20px 72px;
+  }
+
+  .intro-lp-mark {
+    width: min(280px, 82%);
+    margin-bottom: 20px;
+  }
+
+  .intro-lp-mark-blur {
+    -webkit-backdrop-filter: blur(16px) saturate(0.9);
+    backdrop-filter: blur(16px) saturate(0.9);
+  }
+
+  .intro-lp-band {
+    padding: 52px 20px;
+  }
+
+  .intro-lp-band.tone-tint::before {
+    width: 200px;
+    height: 200px;
+    top: -60px;
+    right: -60px;
+  }
+
+  /* PCでどう並べてあっても、スマホでは必ず1列に積み直す */
+  .intro-lp-grid {
+    gap: 28px;
+  }
+
+  .intro-lp-cell {
+    grid-column: 1 / -1;
+  }
+
+  .intro-lp-it {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  /* 1列になったら入れ替えの意味がないので、写真を必ず上にする */
+  .intro-lp-it.flip .intro-lp-it-fig {
+    order: 0;
+  }
+
+  .intro-lp-gallery {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+
+  .intro-lp-text {
+    line-height: 1.95;
+  }
+}
+
+/* 動きを減らす設定の人には、動かさずに最初から見せる */
+@media (prefers-reduced-motion: reduce) {
+  .intro-lp [data-effect] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .intro-lp-img-skeleton {
+    animation: none;
+  }
+}

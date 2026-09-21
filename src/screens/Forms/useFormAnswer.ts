@@ -2,13 +2,8 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where, addDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
+import { currentFiscalYear } from "../../lib/grade";
 import type { FormDef, Band, FormResponse, FormQuestion } from "../../Types/types";
-
-// 現在の年度(4月始まり)
-const currentFiscalYear = () => {
-  const now = new Date();
-  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-};
 
 /**
  * 表示条件をもとに、表示すべき質問だけを返す。

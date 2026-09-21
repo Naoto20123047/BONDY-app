@@ -2,6 +2,8 @@ import { useState } from "react";
 import { collection, addDoc, getDocs } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { createNotifications } from "../../lib/notify";
+import { notifyNewForm } from "../../lib/teamsNotify";
+import { formTypeLabel } from "../../lib/formLabel";
 import type { FormType, FormQuestion } from "../../Types/types";
 
 const genId = () => Math.random().toString(36).slice(2, 9);
@@ -192,6 +194,14 @@ export function useCreateForm() {
         `新しいフォーム「${title.trim()}」が配信されました`,
         `/forms/${formRef.id}`
       );
+
+      // Teams に通知(失敗してもフォーム作成は成立させる)
+      await notifyNewForm({
+        formId: formRef.id,
+        typeLabel: formTypeLabel(type),
+        title: title.trim(),
+        deadline,
+      });
 
       onDone();
     } catch (e) {
