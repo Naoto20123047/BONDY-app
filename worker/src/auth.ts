@@ -16,6 +16,8 @@ const JWKS_CACHE_KEY = "https://bondy-worker.internal/jwks";
 export interface VerifiedToken {
   uid: string;
   email: string | null;
+  /** メールアドレスの確認が済んでいるか(v1.3.2) */
+  emailVerified: boolean;
 }
 
 interface Jwk {
@@ -103,6 +105,7 @@ export async function verifyIdToken(
       iat?: number;
       auth_time?: number;
       email?: string;
+      email_verified?: boolean;
     }>(payloadSegment);
 
     // 発行者と対象プロジェクトの確認
@@ -140,7 +143,11 @@ export async function verifyIdToken(
     );
     if (!valid) return null;
 
-    return { uid: payload.sub, email: payload.email ?? null };
+    return {
+      uid: payload.sub,
+      email: payload.email ?? null,
+      emailVerified: payload.email_verified === true,
+    };
   } catch (e) {
     console.error("IDトークンの検証中にエラーが発生しました", e);
     return null;

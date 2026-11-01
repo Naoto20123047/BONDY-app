@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, doc, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 import { notifyNewPost } from "../../lib/teamsNotify";
@@ -25,25 +25,34 @@ export function useCreatePost() {
     }
     setSubmitting(true);
     try {
-      const postRef = await addDoc(collection(db, "posts"), {
-        authorId: member.id,
+      // 匿名投稿は本体に投稿者を持たせず、anonymousAuthors(幹部と本人しか
+      // 読めない)に分けて書く。2つは1回のバッチで書き、片方だけ残らないようにする
+      const postRef = doc(collection(db, "posts"));
+      const batch = writeBatch(db);
+      const base = {
         category,
         title: title.trim(),
         body: body.trim(),
         createdAt: new Date().toISOString(),
         resolved: false,
         isAnonymous,
-      });
+      };
+      if (isAnonymous) {
+        batch.set(postRef, base);
+        batch.set(doc(db, "anonymousAuthors", postRef.id), {
+          authorId: member.id,
+          kind: "post",
+          postId: postRef.id,
+          seenCommentCount: 0,
+        });
+      } else {
+        batch.set(postRef, { ...base, authorId: member.id });
+      }
+      await batch.commit();
 
       // Teams に通知(失敗しても投稿は成立させる)。
-      // 匿名投稿は notifyNewPost 側で弾かれるため飛ばない
-      await notifyNewPost({
-        postId: postRef.id,
-        category,
-        title: title.trim(),
-        authorName: member.name,
-        isAnonymous,
-      });
+      // 匿名投稿は通知しない(Worker 側でも弾いている)
+      if (!isAnonymous) await notifyNewPost(postRef.id);
 
       onDone();
     } catch (e) {

@@ -100,17 +100,17 @@ export function useCreateBand() {
     setSaving(true);
     try {
       // bandsコレクションに status「申請中」で新規作成
-      await addDoc(collection(db, "bands"), {
+      // memberIds は members と同じ並びのIDだけの配列。
+      // Firestore のルールで「そのバンドのメンバーか」を判定するために持たせている
+      const bandRef = await addDoc(collection(db, "bands"), {
         name: name.trim(),
         members: selected.map((s) => ({ memberId: s.memberId, part: s.part.trim() })),
+        memberIds: selected.map((s) => s.memberId),
         status: "申請中",
       });
 
       // Teams に通知(失敗しても申請は成立させる)
-      await notifyNewBand({
-        bandName: name.trim(),
-        memberNames: selected.map((s) => s.name),
-      });
+      await notifyNewBand(bandRef.id);
 
       onDone();
     } catch (e) {

@@ -286,7 +286,6 @@ export default function CreateFormScreen() {
                     <li>回答画面に「出演バンド選択」が自動で表示されます</li>
                     <li>同じ人でも、所属する別のバンドを選べば複数回答できます</li>
                     <li>回答の編集は、そのバンドのメンバー全員ができます</li>
-                    <li>会費未納のメンバーがいると警告が出ます（回答自体は可能）</li>
                   </ul>
                 </div>
                 <div className="create-help-item">

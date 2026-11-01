@@ -19,11 +19,14 @@ export interface MemberInfo {
 }
 
 /** Firestore REST のフィールド表現 */
-interface FirestoreValue {
+export interface FirestoreValue {
   stringValue?: string;
   booleanValue?: boolean;
   integerValue?: string;
+  doubleValue?: number;
+  nullValue?: null;
   arrayValue?: { values?: FirestoreValue[] };
+  mapValue?: { fields?: Record<string, FirestoreValue> };
 }
 
 interface FirestoreDocument {
@@ -82,4 +85,48 @@ export function isActiveMember(member: MemberInfo | null): boolean {
  */
 export function isOfficer(member: MemberInfo | null): boolean {
   return isActiveMember(member) && member!.role === "幹部";
+}
+
+/** Firestore REST の値を、普通の JavaScript の値に戻す */
+export function fromFirestoreValue(value: FirestoreValue | undefined): unknown {
+  if (!value) return undefined;
+  if (value.stringValue !== undefined) return value.stringValue;
+  if (value.booleanValue !== undefined) return value.booleanValue;
+  if (value.integerValue !== undefined) return Number(value.integerValue);
+  if (value.doubleValue !== undefined) return value.doubleValue;
+  if (value.arrayValue !== undefined) {
+    return (value.arrayValue.values ?? []).map((v) => fromFirestoreValue(v));
+  }
+  if (value.mapValue !== undefined) {
+    const out: Record<string, unknown> = {};
+    Object.entries(value.mapValue.fields ?? {}).forEach(([k, v]) => {
+      out[k] = fromFirestoreValue(v);
+    });
+    return out;
+  }
+  return null;
+}
+
+/**
+ * 任意のドキュメントを、呼び出した人の ID トークンで読む(v1.3.2)。
+ * ルールがそのまま効くので、その人が読めないものは null になる。
+ */
+export async function fetchDocAsCaller(
+  idToken: string,
+  projectId: string,
+  collection: string,
+  id: string
+): Promise<Record<string, unknown> | null> {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return null;
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${projectId}` +
+    `/databases/(default)/documents/${collection}/${encodeURIComponent(id)}`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
+  if (!response.ok) return null;
+  const doc = (await response.json()) as FirestoreDocument;
+  const out: Record<string, unknown> = {};
+  Object.entries(doc.fields ?? {}).forEach(([k, v]) => {
+    out[k] = fromFirestoreValue(v);
+  });
+  return out;
 }

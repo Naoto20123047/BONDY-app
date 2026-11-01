@@ -40,14 +40,10 @@ export function useEquipmentManage() {
       const cleaned = Object.fromEntries(
         Object.entries(data).filter(([, v]) => v !== undefined)
       );
-      await addDoc(collection(db, "equipment"), cleaned);
+      const equipmentRef = await addDoc(collection(db, "equipment"), cleaned);
 
       // Teams に通知(失敗しても登録は成立させる)
-      await notifyNewEquipment({
-        name: data.name,
-        category: data.category,
-        quantity: data.totalQuantity,
-      });
+      await notifyNewEquipment(equipmentRef.id);
 
       await fetchItems();
     } catch (e) {

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { hasOfficerRole } from "./lib/roles";
 
@@ -28,6 +28,8 @@ import EquipmentManageScreen from "./screens/Equipment/equipmentManageScreen";
 import EquipmentRequestsScreen from "./screens/Equipment/equipmentRequestsScreen";
 import JoinFlow from "./screens/Login/joinFlow";
 import ReactivateScreen from "./screens/Login/reactivateScreen";
+import VerifyEmailScreen from "./screens/Login/verifyEmailScreen";
+import AuthActionScreen from "./screens/Login/authActionScreen";
 import IntroEditScreen from "./screens/AdminDashboard/introEditScreen";
 import IntroViewScreen from "./screens/Intro/introViewScreen";
 import ArchiveScreen from "./screens/Archive/archiveScreen";
@@ -41,7 +43,14 @@ import PostDetailScreen from "./screens/Board/postDetailScreen";
 
 // 認証状態に応じて表示を切り替える中身
 function AppContent() {
-  const { firebaseUser, member, loading, withdrawnMember } = useAuth();
+  const { firebaseUser, member, loading, withdrawnMember, emailVerified } = useAuth();
+  const location = useLocation();
+
+  // メールのリンクを開いたとき(確認メール・パスワード再設定など)。
+  // ログインしていてもいなくても、認証状態の確認を待たずに開く
+  if (location.pathname === "/auth/action") {
+    return <AuthActionScreen />;
+  }
 
   // 認証状態を確認中
   if (loading) {
@@ -70,6 +79,15 @@ function AppContent() {
   // ログイン済みだがメンバーではない(見学者) → 紹介画面 → プロフィール登録
   // (完全削除された人もここに来て、新規メンバーとして登録し直すことになる)
   if (!member) {
+    // メールアドレスの確認が済むまでは先に進ませない(v1.3.2)。
+    // ルール側でも、確認済みの大学アドレスでなければ Member を作れない
+    if (!emailVerified) {
+      return (
+        <Routes>
+          <Route path="*" element={<VerifyEmailScreen />} />
+        </Routes>
+      );
+    }
     return (
       <Routes>
         <Route path="*" element={<JoinFlow />} />

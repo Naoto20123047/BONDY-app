@@ -4,7 +4,6 @@ import { db } from "../../lib/firebase";
 import { fetchActiveMembers } from "../../lib/members";
 import { createNotifications } from "../../lib/notify";
 import { notifyNewForm } from "../../lib/teamsNotify";
-import { formTypeLabel } from "../../lib/formLabel";
 import type { FormQuestion, FormType } from "../../Types/types";
 
 const genId = () => Math.random().toString(36).slice(2, 9);
@@ -194,12 +193,7 @@ export function useCreateForm() {
       );
 
       // Teams に通知(失敗してもフォーム作成は成立させる)
-      await notifyNewForm({
-        formId: formRef.id,
-        typeLabel: formTypeLabel(type),
-        title: title.trim(),
-        deadline,
-      });
+      await notifyNewForm(formRef.id);
 
       onDone();
     } catch (e) {

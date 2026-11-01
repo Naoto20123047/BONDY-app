@@ -168,7 +168,10 @@ export function useMyPage() {
     if (!ok) return;
     try {
       const updatedMembers = target.members.filter((m) => m.memberId !== member.id);
-      await updateDoc(doc(db, "bands", bandId), { members: updatedMembers });
+      await updateDoc(doc(db, "bands", bandId), {
+        members: updatedMembers,
+        memberIds: updatedMembers.map((m) => m.memberId),
+      });
 
       // 幹部全員に通知
       const officerIds = await getOfficerIds();
@@ -232,19 +235,23 @@ export function useMyPage() {
     );
     if (!ok) return;
     try {
-      // ソフト削除(status を withdrawn に)
-      await updateDoc(doc(db, "members", member.id), {
-        status: "withdrawn",
-        withdrawnAt: todayString(),
-      });
+      // 順番に意味がある(v1.3.2)。
+      // 退会状態にした後はルール上バンドを更新できなくなるため、
+      // バンドから抜ける → 幹部に通知 → 退会状態、の順に行う。
 
-      // 自分が所属しているバンドから自分を外す(最後の1人だったバンドは解散扱い)
+      // 自分が所属しているバンドから自分を外す。
+      // 最後の1人だったバンドは解散の申請にする(「解散」にできるのは幹部だけ)
       for (const b of bands) {
         const remaining = b.members.filter((m) => m.memberId !== member.id);
         if (remaining.length === 0) {
-          await updateDoc(doc(db, "bands", b.id), { status: "解散" });
+          if (b.status === "承認済み") {
+            await updateDoc(doc(db, "bands", b.id), { status: "解散申請中" });
+          }
         } else {
-          await updateDoc(doc(db, "bands", b.id), { members: remaining });
+          await updateDoc(doc(db, "bands", b.id), {
+            members: remaining,
+            memberIds: remaining.map((m) => m.memberId),
+          });
         }
       }
 
@@ -256,6 +263,12 @@ export function useMyPage() {
         `${member.name}さんが退会しました`,
         "/roster"
       );
+
+      // ソフト削除(status を withdrawn に)
+      await updateDoc(doc(db, "members", member.id), {
+        status: "withdrawn",
+        withdrawnAt: todayString(),
+      });
 
       // 退会は本人の意思によるものなので、Auth アカウントは無効化しない。
       // 完全削除されていなければ、再ログイン時に復帰画面から戻れる。

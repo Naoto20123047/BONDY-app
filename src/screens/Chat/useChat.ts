@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
+import { toggleReaction as writeReaction, cleanReactions } from "../../lib/reactions";
 
 export type MessageType = "text" | "stamp";
 
@@ -60,7 +61,6 @@ export function useChat() {
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
-        console.log("[snapshot]", new Date().toISOString());
         const raw: RawMessage[] = snap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<RawMessage, "id">),
@@ -80,7 +80,7 @@ export function useChat() {
             type,
             text: m.text ?? "",
             stamp: m.stamp ?? "",
-            reactions: m.reactions ?? {},
+            reactions: cleanReactions(m.reactions),
             createdAt: m.createdAt,
             isMine: m.senderId === member.id,
             deleted: m.deleted === true,
@@ -180,25 +180,10 @@ export function useChat() {
     const target = messages.find((m) => m.id === messageId);
     if (!target || target.deleted) return;
 
-    const reactions: Record<string, string[]> = {};
-    Object.entries(target.reactions).forEach(([key, ids]) => {
-      reactions[key] = [...ids];
-    });
-
-    const current = reactions[emoji] ?? [];
-    if (current.includes(member.id)) {
-      const next = current.filter((id) => id !== member.id);
-      if (next.length === 0) {
-        delete reactions[emoji];
-      } else {
-        reactions[emoji] = next;
-      }
-    } else {
-      reactions[emoji] = [...current, member.id];
-    }
-
+    const already = (target.reactions[emoji] ?? []).includes(member.id);
     try {
-      await updateDoc(doc(db, "messages", messageId), { reactions });
+      // 押した絵文字のキーだけを書き換える(lib/reactions.ts を参照)
+      await writeReaction("messages", messageId, emoji, member.id, already);
     } catch (e) {
       console.error("リアクションの更新に失敗しました", e);
     }
@@ -213,4 +198,4 @@ export function useChat() {
     deleteMessage,
     toggleReaction,
   } as const;
-}
+}

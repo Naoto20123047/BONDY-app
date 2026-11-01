@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where, addDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
-import { currentFiscalYear } from "../../lib/grade";
 import type { Band, FormDef, FormQuestion, FormResponse } from "../../Types/types";
 import { todayString } from "../../lib/date";
 
@@ -47,10 +45,6 @@ export function useFormAnswer(id: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // 会費チェック用:今年度の納入済みメンバーIDと、全メンバーの氏名
-  const [paidMemberIds, setPaidMemberIds] = useState<Set<string>>(new Set());
-  const [nameMap, setNameMap] = useState<Record<string, string>>({});
-
   useEffect(() => {
     const fetchData = async () => {
       if (!id || !member) {
@@ -93,21 +87,6 @@ export function useFormAnswer(id: string | undefined) {
           if (mine) setAnswers({ ...mine.answers });
         }
 
-        // イベント型のときだけ、会費チェックの準備(納入済みIDと氏名マップ)
-        if (formData.type === "イベント") {
-          const cy = currentFiscalYear();
-          const duesSnap = await getDocs(
-            query(collection(db, "dues"), where("fiscalYear", "==", cy))
-          );
-          const paidIds = new Set<string>();
-          duesSnap.docs.forEach((d) => {
-            const data = d.data() as { memberId: string; paid: boolean };
-            if (data.paid) paidIds.add(data.memberId);
-          });
-          setPaidMemberIds(paidIds);
-
-          setNameMap(await fetchMemberNameMap());
-        }
       } catch (e) {
         console.error("フォームの取得に失敗しました", e);
       } finally {
@@ -137,16 +116,6 @@ export function useFormAnswer(id: string | undefined) {
   };
 
   const selectableBands = myBands;
-
-  // 選択中バンドの未納メンバーの氏名リスト(イベント型のみ)
-  const unpaidMemberNames: string[] = (() => {
-    if (!isEvent || !bandId) return [];
-    const band = myBands.find((b) => b.id === bandId);
-    if (!band) return [];
-    return band.members
-      .filter((m) => !paidMemberIds.has(m.memberId))
-      .map((m) => nameMap[m.memberId] ?? "不明");
-  })();
 
   const submit = async (onDone: () => void) => {
     if (!form || !member) return;
@@ -181,7 +150,7 @@ export function useFormAnswer(id: string | undefined) {
         if (existing) {
           await updateDoc(doc(db, "formResponses", existing.id), {
             answers: cleanedAnswers,
-            memberId: member.id, // 最後に編集した人
+            lastEditedBy: member.id, // 最後に編集した人(memberId は変えない)
             submittedAt: todayString(),
           });
         } else {
@@ -199,6 +168,7 @@ export function useFormAnswer(id: string | undefined) {
         if (mine) {
           await updateDoc(doc(db, "formResponses", mine.id), {
             answers: cleanedAnswers,
+            lastEditedBy: member.id,
             submittedAt: todayString(),
           });
         } else {
@@ -223,7 +193,6 @@ export function useFormAnswer(id: string | undefined) {
     form,
     isEvent,
     isExpired,
-    unpaidMemberNames,
     selectableBands,
     bandId,
     selectBand,
