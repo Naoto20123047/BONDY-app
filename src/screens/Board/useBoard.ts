@@ -10,6 +10,7 @@ import {
 import { db } from "../../lib/firebase";
 import { fetchMemberNameMap } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
+import { fetchMyAnonymousEntries } from "../../lib/anon";
 import type { Post, PostCategory } from "../../Types/types";
 
 export interface PostView extends Post {
@@ -68,6 +69,15 @@ export function useBoard() {
       // 氏名解決
       const nameMap = await fetchMemberNameMap();
 
+      // 自分が匿名で書いた投稿(「匿名（あなた）」の表示に使う)
+      const myAnonPostIds = new Set(
+        member
+          ? (await fetchMyAnonymousEntries(member.id))
+              .filter((a) => a.kind === "post")
+              .map((a) => a.postId)
+          : []
+      );
+
       // コメント数を数える
       const commentSnap = await getDocs(collection(db, "comments"));
       const commentCountMap: Record<string, number> = {};
@@ -81,10 +91,10 @@ export function useBoard() {
         .map((p) => ({
           ...p,
           authorName: p.isAnonymous
-            ? p.authorId === member?.id
+            ? myAnonPostIds.has(p.id)
               ? "匿名（あなた）"
               : "匿名"
-            : nameMap[p.authorId] ?? "不明",
+            : nameMap[p.authorId ?? ""] ?? "不明",
           commentCount: commentCountMap[p.id] ?? 0,
         }))
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));

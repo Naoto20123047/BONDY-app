@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
+import { sendVerificationMail } from "../../lib/emailVerification";
 import { auth } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 
@@ -57,7 +58,10 @@ export function useLogin() {
       if (mode === "login") {
         await signInWithEmailAndPassword(auth, email, password);
       } else if (mode === "signup") {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        // 確認メールを送る。リンクを開くまではプロフィール登録に進めない
+        // (ルールも確認済みの大学アドレスでなければ Member を作らせない)
+        await sendVerificationMail(credential.user);
       } else if (mode === "reset") {
         await sendPasswordResetEmail(auth, email);
         setInfo("パスワード再設定用のメールを送信しました。メールをご確認ください。");

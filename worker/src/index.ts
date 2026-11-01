@@ -7,10 +7,10 @@
  *
  * 実装済みのエンドポイント
  *   GET  /health              疎通確認(認証不要)
- *   POST /notify/teams        Teams への通知中継            … C-2
+ *   POST /notify/teams        Teams への通知中継。本文は Worker が組み立てる(v1.3.2)
  *   POST /admin/disable-user  Auth アカウントの無効化/有効化  … A-3(除籍)
  *   POST /images/upload       紹介ページ用の画像を保存する(幹部のみ)
- *   POST /images/sign         画像の署名付きURLを発行する(ログイン済みなら誰でも)
+ *   POST /images/sign         画像の署名付きURLを発行する(在籍者か、確認済みの大学アドレス)
  *   POST /images/delete       画像を消す(幹部のみ)
  *   GET  /images/file         画像の本体を返す(署名で保護。IDトークンは使わない)
  *
@@ -22,6 +22,7 @@
 
 import { verifyIdToken, extractBearerToken } from "./auth";
 import { fetchMyMember, isActiveMember, isOfficer, type MemberInfo } from "./firestore";
+import { composeTeamsText, SENT_MARK_TTL, TEAMS_NOTIFY_TYPES, type TeamsNotifyType } from "./teams";
 import { parseServiceAccount, getAccessToken } from "./google";
 import {
   SIGNATURE_TTL,
@@ -37,6 +38,8 @@ export interface Env {
   // wrangler.toml の vars
   FIREBASE_PROJECT_ID: string;
   ALLOWED_ORIGINS: string;
+  /** Teams の通知に載せるアプリのURL(v1.3.2) */
+  APP_ORIGIN: string;
 
   // wrangler.toml の kv_namespaces
   IMAGES: KVNamespace;
@@ -55,6 +58,15 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 /** 1回の署名発行で受け付ける枚数 */
 const MAX_SIGN_BATCH = 60;
+
+/**
+ * 紹介ページの画像として受け付ける形式(v1.3.2)。
+ * 以前は image/* をすべて受け付けており、スクリプトを含められる SVG も通った
+ */
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** 在学生として扱える大学のドメイン(Firestore ルールの isVerifiedUniversityEmail と同じ) */
+const UNIVERSITY_DOMAIN = "@kaishi-pu.ac.jp";
 
 // ---------------------------------------------------------------------------
 // CORS
@@ -99,6 +111,8 @@ interface Caller {
   uid: string;
   idToken: string;
   member: MemberInfo | null;
+  email: string | null;
+  emailVerified: boolean;
 }
 
 async function authenticate(request: Request, env: Env): Promise<Caller | null> {
@@ -109,7 +123,13 @@ async function authenticate(request: Request, env: Env): Promise<Caller | null> 
   if (!verified) return null;
 
   const member = await fetchMyMember(idToken, verified.uid, env.FIREBASE_PROJECT_ID);
-  return { uid: verified.uid, idToken, member };
+  return {
+    uid: verified.uid,
+    idToken,
+    member,
+    email: verified.email,
+    emailVerified: verified.emailVerified,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +137,8 @@ async function authenticate(request: Request, env: Env): Promise<Caller | null> 
 // ---------------------------------------------------------------------------
 
 interface TeamsNotifyBody {
-  text?: string;
+  type?: unknown;
+  id?: unknown;
 }
 
 /**
@@ -169,26 +190,46 @@ async function handleNotifyTeams(
     return json({ error: "invalid_json" }, 400, request, env);
   }
 
-  const text = (body.text ?? "").trim();
-  if (!text) {
-    return json({ error: "text_required" }, 400, request, env);
+  // v1.3.2: 本文は受け取らない。種類と対象のIDだけ
+  const type = body.type as TeamsNotifyType;
+  const id = typeof body.id === "string" ? body.id.trim() : "";
+  if (!TEAMS_NOTIFY_TYPES.includes(type) || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) {
+    return json({ error: "invalid_target" }, 400, request, env);
   }
-  // 事故で長大な本文が飛ばないように上限を設ける
-  if (text.length > 4000) {
-    return json({ error: "text_too_long" }, 400, request, env);
+
+  // 同じ対象への通知は1回だけ
+  const sentKey = `teams-sent:${type}:${id}`;
+  if (env.IMAGES && (await env.IMAGES.get(sentKey)) !== null) {
+    return json({ ok: true, skipped: "already_sent" }, 200, request, env);
+  }
+
+  const composed = await composeTeamsText(type, id, {
+    idToken: caller.idToken,
+    projectId: env.FIREBASE_PROJECT_ID,
+    appOrigin: (env.APP_ORIGIN || "").replace(/\/$/, ""),
+    caller: { uid: caller.uid, member: caller.member },
+  });
+  if (!composed.ok) {
+    return json({ error: composed.error }, composed.status, request, env);
+  }
+
+  // 先に印を付けてから送る(同時に2回呼ばれても、二重に流れにくくする)
+  if (env.IMAGES) {
+    await env.IMAGES.put(sentKey, new Date().toISOString(), { expirationTtl: SENT_MARK_TTL });
   }
 
   const upstream = await fetch(env.TEAMS_WEBHOOK_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(buildAdaptiveCard(text)),
+    body: JSON.stringify(buildAdaptiveCard(composed.text)),
   });
 
   if (!upstream.ok) {
     const detail = await upstream.text();
     console.error("Teamsへの送信に失敗しました", upstream.status, detail);
-    // 呼び出し元(アプリ)には失敗を伝えるが、アプリ側は握りつぶす実装にすること。
-    // 通知の失敗で投稿そのものを失敗させない(仕様書「リスク」参照)
+    // 送れなかったので印を外し、やり直せるようにする
+    if (env.IMAGES) await env.IMAGES.delete(sentKey);
+    // アプリ側は握りつぶす実装にすること(通知の失敗で投稿そのものを失敗させない)
     return json({ error: "upstream_failed" }, 502, request, env);
   }
 
@@ -279,7 +320,7 @@ function decodeDataUrl(
   if (!match) return null;
 
   const mimeType = match[1].toLowerCase();
-  if (!mimeType.startsWith("image/")) return null;
+  if (!ALLOWED_IMAGE_TYPES.includes(mimeType)) return null;
 
   let binary: string;
   try {
@@ -360,10 +401,14 @@ async function handleImageSign(
   caller: Caller
 ): Promise<Response> {
   // 見学者(Member ドキュメントを持たない人)にも紹介ページを見せるため、
-  // ここは「ログイン済みであること」だけを条件にする。
-  // pages/intro の読み取り条件(isSignedIn)と揃えてある。
-  if (!caller.uid) {
-    return json({ error: "unauthorized" }, 401, request, env);
+  // 在籍者に加えて「メール確認済みの大学アドレス」も通す。
+  // v1.3.2: 以前は「ログイン済み」だけを条件にしていた。
+  // pages/intro の読み取り条件(Firestore ルール)と揃えてある。
+  const verifiedStudent =
+    caller.emailVerified &&
+    (caller.email ?? "").toLowerCase().endsWith(UNIVERSITY_DOMAIN);
+  if (!isActiveMember(caller.member) && !verifiedStudent) {
+    return json({ error: "forbidden" }, 403, request, env);
   }
   if (!env.IMAGE_SIGNING_KEY) {
     return json({ error: "images_not_configured" }, 500, request, env);
@@ -471,6 +516,8 @@ async function handleImageFile(
     status: 200,
     headers: {
       "content-type": stored.contentType,
+      // 中身から形式を推測させない(画像以外として解釈されるのを防ぐ)
+      "x-content-type-options": "nosniff",
       // 署名の有効期間より長く持たせない
       "cache-control": `public, max-age=${SIGNATURE_TTL}`,
     },

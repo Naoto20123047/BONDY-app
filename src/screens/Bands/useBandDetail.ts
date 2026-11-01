@@ -127,7 +127,10 @@ export function useBandDetail(id: string | undefined) {
     }
     try {
       const updatedMembers = [...band.members, { memberId: newMemberId, part: part.trim() }];
-      await updateDoc(doc(db, "bands", band.id), { members: updatedMembers });
+      await updateDoc(doc(db, "bands", band.id), {
+        members: updatedMembers,
+        memberIds: updatedMembers.map((m) => m.memberId),
+      });
 
       // 幹部全員に通知
       const addedName = addableMembers.find((m) => m.id === newMemberId)?.name ?? "メンバー";
@@ -162,7 +165,10 @@ export function useBandDetail(id: string | undefined) {
     if (!ok) return;
     try {
       const updatedMembers = band.members.filter((m) => m.memberId !== targetMemberId);
-      await updateDoc(doc(db, "bands", band.id), { members: updatedMembers });
+      await updateDoc(doc(db, "bands", band.id), {
+        members: updatedMembers,
+        memberIds: updatedMembers.map((m) => m.memberId),
+      });
 
       // 幹部全員に通知
       const officerIds = await getOfficerIds();

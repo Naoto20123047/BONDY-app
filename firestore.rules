@@ -3,13 +3,18 @@ rules_version = '2';
 // =============================================================================
 // BONDYアプリ Firestore セキュリティルール
 //
-// 設計方針(v1.3.0 仕様書 C-3 に準拠)
+// 設計方針
 //  - members ドキュメントのID = Firebase Auth の UID。これを判定の起点にする
 //  - 在籍確認は status、役職確認は role、OB判定は isOB を参照する
-//  - メールアドレスのドメインは判定に使わない
-//    (v1.4.0 で外部メール連携を入れるとドメイン判定が破綻するため)
+//  - メールアドレスのドメインを使うのは「在学生の新規登録」という入口の1か所だけ
+//    (v1.3.2。卒業後に外部メールへ切り替えた人もいるため、権限判定には使わない)
 //  - 「データは削除しない」方針に従い、delete は原則として閉じる
 //  - 明示的に許可していないコレクションは全て拒否(末尾の default deny)
+//
+// v1.3.2 の考え方
+//  守りはこのルールと Worker に置く。画面でボタンを隠すのは守りにならない。
+//  Firebase の設定値は公開情報で、ブラウザから SDK を直接呼べば画面を通らずに
+//  読み書きできるため。「URLを知られないこと」も守りの前提にしない。
 //
 // 読み取り回数について
 //  memberData() は get() を1回消費する。クエリ(list)に対するルール評価は
@@ -45,10 +50,19 @@ service cloud.firestore {
     }
 
     // 幹部かどうか。
-    // 役職は '幹部' と '一般メンバー' の2つだけ('管理者' は v1.3.0 で廃止)。
+    // 役職は '幹部' と '一般メンバー' の2つだけ。
     // フロントの lib/roles.ts と worker/src/firestore.ts にも同じ判定がある。
     function isOfficer() {
       return isActive() && memberData().role == '幹部';
+    }
+
+    // メール確認済みの大学アドレス。
+    // 在学生の新規登録と、まだメンバーでない見学者の紹介画面にだけ使う。
+    function isVerifiedUniversityEmail() {
+      return isSignedIn()
+             && request.auth.token.email_verified == true
+             && request.auth.token.email is string
+             && request.auth.token.email.lower().matches('.*@kaishi-pu[.]ac[.]jp$');
     }
 
     // 変更されたフィールドが指定した集合に収まっているか
@@ -56,15 +70,122 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
     }
 
-    // 指定した投稿の投稿者が自分か(コメントの巻き込み削除の判定に使う)
+    // 指定したフィールドが変わっていないか
+    function unchanged(keys) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+    }
+
+    function docPath(coll, id) {
+      return /databases/$(database)/documents/$(coll)/$(id);
+    }
+
+    // そのバンドのメンバーか。判定には members ではなく memberIds(IDだけの配列)を使う。
+    // members は {memberId, part} の配列で、ルールからは中身を検索できないため。
+    function isBandMember(bandId) {
+      return exists(docPath('bands', bandId))
+             && request.auth.uid in get(docPath('bands', bandId)).data.get('memberIds', []);
+    }
+
+    // 匿名の投稿・コメントの投稿者が自分か(anonymousAuthors を引く)
+    function anonAuthorIsMe(id) {
+      return exists(docPath('anonymousAuthors', id))
+             && get(docPath('anonymousAuthors', id)).data.authorId == request.auth.uid;
+    }
+
+    // 同じバッチで anonymousAuthors に自分を書いているか(作成時用)
+    function anonAuthorIsMeAfter(id) {
+      return existsAfter(docPath('anonymousAuthors', id))
+             && getAfter(docPath('anonymousAuthors', id)).data.authorId == request.auth.uid;
+    }
+
+    // 指定した投稿の投稿者が自分か(コメントの巻き込み削除の判定に使う)。
+    // 匿名投稿は本体に投稿者を持たないので anonymousAuthors を見る。
     function postAuthorIsMe(postId) {
-      return exists(/databases/$(database)/documents/posts/$(postId))
-             && get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid;
+      return exists(docPath('posts', postId))
+             && (get(docPath('posts', postId)).data.get('authorId', '') == request.auth.uid
+                 || anonAuthorIsMe(postId));
+    }
+
+    function postIsAnonymous(postId) {
+      return exists(docPath('posts', postId))
+             && get(docPath('posts', postId)).data.get('isAnonymous', false) == true;
+    }
+
+    // スタンプは public/stamps/ に置いた画像か、短い絵文字だけ。
+    // 外部の画像URLを入れられると、表示した人の通信が外部に送られるため
+    function isValidStamp(value) {
+      return value is string
+             && (value.matches('^/stamps/[A-Za-z0-9_-]+[.]png$')
+                 || (value.size() > 0 && value.size() <= 16 && !value.matches('.*[/:.<>].*')));
+    }
+
+    // ---------------------------------------------------------------------
+    // リアクション
+    //
+    // 変更できるのは「自分のIDを1つ足す」か「自分のIDを1つ外す」だけ。
+    // ルールでは「変わったキー」を取り出せないため、アプリはリアクションを
+    // 押すたびに押した絵文字を lastReactionKey に書き、ここでそれ以外の
+    // キーが変わっていないことを確かめる。
+    // ---------------------------------------------------------------------
+    function isOwnReactionToggle() {
+      let key = request.resource.data.lastReactionKey;
+      let before = resource.data.get('reactions', {});
+      let after = request.resource.data.get('reactions', {});
+      let b = before.get(key, []);
+      let a = after.get(key, []);
+      return changedOnly(['reactions', 'lastReactionKey'])
+             && key is string && key.size() > 0 && key.size() <= 40
+             && after.diff(before).affectedKeys().hasOnly([key])
+             && (
+                  (!(request.auth.uid in b) && a == b.concat([request.auth.uid]))
+                  || ((request.auth.uid in b) && a == b.removeAll([request.auth.uid]))
+                );
     }
 
     // ---------------------------------------------------------------------
     // members(部員名簿)
     // ---------------------------------------------------------------------
+
+    // 一覧用の小さいアバター画像。大きなデータを入れると、名簿を開くたびに
+    // 全員の通信量と読み取り枠を消費するため上限を設ける
+    function isValidAvatarThumb() {
+      return !('avatarThumb' in request.resource.data)
+             || request.resource.data.avatarThumb == null
+             || (request.resource.data.avatarThumb is string
+                 && request.resource.data.avatarThumb.matches('^data:image/.*')
+                 && request.resource.data.avatarThumb.size() <= 20000);
+    }
+
+    // 役職変更の申請(roleChangeRequests)が承認済みで、
+    // この更新がその申請の内容どおりか
+    function isApprovedRoleChange(memberId) {
+      let reqId = request.resource.data.appliedRequestId;
+      let req = get(docPath('roleChangeRequests', reqId)).data;
+      let before = resource.data.get('positions', []);
+      let after = request.resource.data.get('positions', []);
+      return reqId is string
+             && exists(docPath('roleChangeRequests', reqId))
+             && req.status == 'approved'
+             && changedOnly(['role', 'positions', 'appliedRequestId'])
+             && (
+                  // 役職の付与(対象者本人): 指定された役職を1つ足すだけ
+                  (req.type == 'assign_position' && req.targetMemberId == memberId
+                   && request.resource.data.role == resource.data.role
+                   && after.hasAll(before) && after.removeAll(before) == [req.position]
+                   && after.size() == before.size() + 1)
+                  // 排他の役職(サークル長など)を、前の担当者から外す
+                  || (req.type == 'assign_position' && req.targetMemberId != memberId
+                      && req.position in ['サークル長', '副サークル長', '会計担当']
+                      && request.resource.data.role == resource.data.role
+                      && req.position in before
+                      && after == before.removeAll([req.position]))
+                  // 幹部からの降格
+                  || (req.type == 'dismiss_officer' && req.targetMemberId == memberId
+                      && request.resource.data.role == '一般メンバー'
+                      && after.size() == 0)
+                );
+    }
+
     match /members/{memberId} {
 
       // 自分のドキュメントは常に読める(ログイン直後の AuthContext.loadMember が
@@ -74,25 +195,41 @@ service cloud.firestore {
       // 一覧は在籍者のみ。退会者は名簿を引けない
       allow list: if isActive();
 
-      // 新規登録(プロフィール登録画面)。自分の分だけ、かつ昇格できないようにする
-      allow create: if isSignedIn()
+      // 新規登録(プロフィール登録画面)。
+      // v1.3.2: メール確認済みの大学アドレスに限る。以前は画面でしか
+      // 確かめておらず、実在しない大学アドレスでも部員になれた。
+      allow create: if isVerifiedUniversityEmail()
                     && request.auth.uid == memberId
                     && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
                     && request.resource.data.status == 'active'
                     && request.resource.data.role == '一般メンバー'
                     && request.resource.data.positions.size() == 0
                     && request.resource.data.isOB == false
+                    && request.resource.data.duesPaid == false
+                    && isValidAvatarThumb()
                     // 完全削除された人が登録し直す場合もここを通る。
                     // 過去の日付を入れて NEWバッジを避けることはできるが、
                     // 実害が無いため検証はしない
                     && request.resource.data.joinedAt is string;
 
       allow update: if
-        // 幹部: 役職付与・降格・退会処理・OB登録など全般
-        isOfficer()
+        // 幹部: 退会処理・除籍・復帰・OB登録など。
+        // v1.3.2: 役職(role / positions)は自由に変えられない。下の2つを通す
+        (isOfficer()
+         && unchanged(['role', 'positions', 'uid', 'appliedRequestId'])
+         && isValidAvatarThumb())
+        // 幹部: 一般メンバーを幹部に昇格(即時反映の仕様を維持)
+        || (isOfficer()
+            && changedOnly(['role'])
+            && resource.data.role == '一般メンバー'
+            && request.resource.data.role == '幹部')
+        // 幹部: 承認済みの役職変更の反映
+        || (isOfficer() && isApprovedRoleChange(memberId))
         // 本人: プロフィール編集で変更できる項目のみ
         || (isActive() && request.auth.uid == memberId
-            && changedOnly(['parts', 'nickname', 'avatarColor', 'avatarImageId', 'avatarThumb']))
+            && changedOnly(['parts', 'nickname', 'avatarColor', 'avatarImageId', 'avatarThumb'])
+            && isValidAvatarThumb())
         // 本人: 退会(ソフト削除)。除籍は幹部しかできない
         || (isActive() && request.auth.uid == memberId
             && changedOnly(['status', 'withdrawnAt'])
@@ -114,24 +251,17 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     // pages(アプリ内の編集可能なページ。今は紹介画面 pages/intro のみ)
     //
-    // 読み取り条件が isActive() ではなく isSignedIn() なのは、
-    // **まだメンバーになっていない見学者に見せるページ**だから。
-    // Member ドキュメントが無い状態で読めないと紹介画面が出ない。
-    // アカウント作成は大学メールに限定されているため、読めるのは在学生に限られる。
+    // まだメンバーになっていない見学者にも見せるページ。
+    // v1.3.2: 「ログインしていれば誰でも」をやめ、在籍者か、
+    // メール確認済みの大学アドレスに限った(Worker の /images/sign も同じ条件)
     // ---------------------------------------------------------------------
     match /pages/{pageId} {
-      allow read: if isSignedIn();
+      allow read: if isActive() || isVerifiedUniversityEmail();
       allow write: if isOfficer();
     }
 
     // ---------------------------------------------------------------------
     // archiveEvents / archiveItems(活動の記録)
-    //
-    // 映像・音源の実体は YouTube の限定公開にあり、ここが持つのは索引だけ。
-    // 読めるのは在籍者のみ(見学者には見せない)。登録は幹部だけが行う。
-    //
-    // 消さずに隠せるよう hidden フラグを持たせてあるので、通常の運用で
-    // delete を使うことはない。入力し間違えたものを片付けるためだけに開けている。
     // ---------------------------------------------------------------------
     match /archiveEvents/{eventId} {
       allow read: if isActive();
@@ -144,41 +274,56 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // images(アバター画像)
-    //
-    // ドキュメントID = そのメンバーのUID。1人1枚で、差し替えは上書き。
-    // Member に埋め込まず別コレクションにしてあるのは、名簿一覧で全員分の
-    // 画像を読み込んでしまうのを避けるため。
+    // images(アバター画像)。ドキュメントID = そのメンバーのUID
     // ---------------------------------------------------------------------
     match /images/{imageId} {
       allow read: if isActive();
 
-      // 自分の画像だけ作成・差し替えできる
       allow create, update: if isActive()
                             && request.auth.uid == imageId
-                            && request.resource.data.ownerId == request.auth.uid;
+                            && request.resource.data.ownerId == request.auth.uid
+                            && request.resource.data.dataUrl is string
+                            && request.resource.data.dataUrl.matches('^data:image/.*')
+                            && request.resource.data.dataUrl.size() <= 400000;
 
-      // 本人が外す場合と、幹部による整理
       allow delete: if isActive() && (request.auth.uid == imageId || isOfficer());
     }
 
     // ---------------------------------------------------------------------
     // bands(バンド)
+    //
+    // v1.3.2: members と同じ内容の memberIds(IDだけの配列)を持たせ、
+    // 「そのバンドのメンバーか」をルールで判定できるようにした。
+    // 既存のバンドへの memberIds の書き足しは、幹部が管理画面を開いたときに行う。
     // ---------------------------------------------------------------------
+    function bandMembersConsistent() {
+      return request.resource.data.memberIds is list
+             && request.resource.data.members is list
+             && request.resource.data.memberIds.size() == request.resource.data.members.size();
+    }
+
     match /bands/{bandId} {
       allow read: if isActive();
 
-      // 結成申請。必ず「申請中」で作られる(いきなり承認済みにはできない)
-      allow create: if isActive() && request.resource.data.status == '申請中';
+      // 結成申請。必ず「申請中」で作られ、申請者自身がメンバーに入っている
+      allow create: if isActive()
+                    && request.resource.data.status == '申請中'
+                    && request.resource.data.keys().hasOnly(['name', 'members', 'memberIds', 'status'])
+                    && bandMembersConsistent()
+                    && request.auth.uid in request.resource.data.memberIds;
 
       allow update: if
-        // 幹部: 結成承認・解散承認・却下による差し戻し
+        // 幹部: 結成承認・解散承認・却下による差し戻し・memberIds の書き足し
         isOfficer()
-        // メンバー: 加入/脱退(members)と解散申請(status)のみ
+        // そのバンドのメンバー: 加入・脱退と、解散の申請のみ。
+        // 「解散」にできるのは幹部だけ
         || (isActive()
-            && changedOnly(['members', 'status'])
+            && request.auth.uid in resource.data.get('memberIds', [])
+            && changedOnly(['members', 'memberIds', 'status'])
+            && bandMembersConsistent()
             && (request.resource.data.status == resource.data.status
-                || request.resource.data.status in ['解散申請中', '解散']));
+                || (resource.data.status == '承認済み'
+                    && request.resource.data.status == '解散申請中')));
 
       // 結成申請の却下のみ(まだ承認されていないバンド)
       allow delete: if isOfficer();
@@ -200,11 +345,19 @@ service cloud.firestore {
       allow read: if isActive();
 
       allow create: if isActive()
-                    && request.resource.data.memberId == request.auth.uid;
+                    && request.resource.data.memberId == request.auth.uid
+                    && (request.resource.data.get('bandId', null) == null
+                        || isBandMember(request.resource.data.bandId));
 
-      // バンドフォームは同じバンドの誰でも上書きできる仕様のため、
-      // 在籍者であれば更新可とする(回答者本人に限定しない)
-      allow update: if isActive();
+      // v1.3.2: 回答者・フォーム・バンドは変えられない。
+      // 更新できるのは回答者本人か、バンド回答ならそのバンドのメンバー。
+      // 最後に編集した人は memberId ではなく lastEditedBy に残す
+      allow update: if isActive()
+                    && unchanged(['memberId', 'formId', 'bandId'])
+                    && request.resource.data.get('lastEditedBy', request.auth.uid) == request.auth.uid
+                    && (resource.data.memberId == request.auth.uid
+                        || (resource.data.get('bandId', null) != null
+                            && isBandMember(resource.data.bandId)));
 
       // フォーム削除時の回答一括削除
       allow delete: if isOfficer();
@@ -212,12 +365,12 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // dues(会費)
+    // v1.3.2: 読めるのは本人と幹部だけ(以前は部員全員が全員分を読めた)
     // ---------------------------------------------------------------------
     match /dues/{duesId} {
-      // 本人はマイページで自分の納入状況を、幹部は会費画面で全員分を読む
-      allow read: if isActive();
+      allow read: if isOfficer()
+                  || (isActive() && resource.data.memberId == request.auth.uid);
 
-      // 納入の記録は幹部(会計担当)のみ
       allow create, update: if isOfficer();
 
       // 年度別に残す方針のため削除しない
@@ -243,9 +396,7 @@ service cloud.firestore {
                     && request.resource.data.status == '申請中';
 
       allow update: if
-        // 幹部(機材担当): 承認・却下・返却確認
         isOfficer()
-        // 借りている本人: 返却報告のみ
         || (isActive()
             && resource.data.memberId == request.auth.uid
             && changedOnly(['status', 'reportedAt'])
@@ -256,37 +407,77 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // notifications(アプリ内通知)
+    //
+    // v1.3.2: Spark プランではサーバー側で通知を作れないため、ルールで絞る。
+    //  - 種類は決まった値だけ。一般メンバーが作れるのは操作に伴うものだけ
+    //  - 本文は200文字以内、リンクはアプリ内のパス(外部サイトへの誘導を防ぐ)
     // ---------------------------------------------------------------------
+    function notificationShapeOk() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['targetMemberId', 'type', 'message', 'link', 'read', 'createdAt'])
+             && d.targetMemberId is string
+             && d.message is string && d.message.size() <= 200
+             && d.link is string && d.link.matches('^/[^/].*|^/$')
+             && d.read == false
+             && d.createdAt is string;
+    }
+
     match /notifications/{notificationId} {
-      // 宛先が自分のものだけ。一覧取得は targetMemberId で絞っているため通る
       allow read: if isActive() && resource.data.targetMemberId == request.auth.uid;
 
-      // 他のメンバー宛の通知を作る操作が各所にあるため、在籍者なら作成可
-      allow create: if isActive();
+      allow create: if isActive() && notificationShapeOk() && (
+        request.resource.data.type in [
+          'approval_needed', 'equipment_request', 'band_member_changed', 'post_comment'
+        ]
+        || (isOfficer() && request.resource.data.type in [
+          'form_published', 'approval_result', 'todo_assigned',
+          'equipment_result', 'equipment_overdue'
+        ])
+      );
 
-      // 既読フラグのみ
       allow update: if isActive()
                     && resource.data.targetMemberId == request.auth.uid
                     && changedOnly(['read']);
 
-      // 既読が5件を超えた分の自動削除
       allow delete: if isActive()
                     && resource.data.targetMemberId == request.auth.uid;
     }
 
     // ---------------------------------------------------------------------
     // roleChangeRequests(役職変更の承認申請)
+    //
+    // v1.3.2: 承認の数を誤魔化せないようにした。
+    //  - 作成時は必要数3、承認者は提案者1人だけ
+    //  - 承認は「自分のIDを1つ足す」だけ
+    //  - approved にできるのは承認が必要数に達したときだけ
     // ---------------------------------------------------------------------
     match /roleChangeRequests/{requestId} {
-      // ホーム画面の承認待ち件数でも参照する
       allow read: if isActive();
 
       allow create: if isOfficer()
                     && request.resource.data.proposedBy == request.auth.uid
-                    && request.resource.data.status == 'pending';
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.requiredApprovals == 3
+                    && request.resource.data.approvals == [request.auth.uid]
+                    && request.resource.data.type in ['assign_position', 'dismiss_officer']
+                    && request.resource.data.targetMemberId is string;
 
-      // 承認・却下
-      allow update: if isOfficer();
+      allow update: if isOfficer()
+                    && resource.data.status == 'pending'
+                    && (
+                         // 承認: 自分のIDを1つ足す。必要数に達していれば approved にしてよい
+                         (changedOnly(['approvals', 'status'])
+                          && !(request.auth.uid in resource.data.approvals)
+                          && request.resource.data.approvals
+                               == resource.data.approvals.concat([request.auth.uid])
+                          && (request.resource.data.status == 'pending'
+                              || (request.resource.data.status == 'approved'
+                                  && request.resource.data.approvals.size()
+                                       >= resource.data.requiredApprovals)))
+                         // 却下
+                         || (changedOnly(['status'])
+                             && request.resource.data.status == 'rejected')
+                       );
 
       // 履歴として残す
       allow delete: if false;
@@ -294,20 +485,39 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // posts(掲示板の投稿)
+    //
+    // v1.3.2: 匿名投稿は本体に投稿者(authorId)を持たない。
+    // 投稿者は anonymousAuthors に分け、幹部と本人しか読めないようにした。
     // ---------------------------------------------------------------------
     match /posts/{postId} {
       allow read: if isActive();
 
-      // 匿名投稿でも authorId は実名のまま保存する(既存方針)
       allow create: if isActive()
-                    && request.resource.data.authorId == request.auth.uid;
+                    && request.resource.data.resolved == false
+                    && request.resource.data.isAnonymous is bool
+                    && request.resource.data.title is string
+                    && request.resource.data.body is string
+                    && (
+                         (request.resource.data.isAnonymous == false
+                          && request.resource.data.keys().hasOnly(
+                               ['authorId', 'category', 'title', 'body', 'createdAt', 'resolved', 'isAnonymous'])
+                          && request.resource.data.authorId == request.auth.uid)
+                         || (request.resource.data.isAnonymous == true
+                             && request.resource.data.keys().hasOnly(
+                                  ['category', 'title', 'body', 'createdAt', 'resolved', 'isAnonymous'])
+                             && anonAuthorIsMeAfter(postId))
+                       );
 
-      // 解決フラグの切り替えは投稿者のみ
-      allow update: if isActive()
-                    && (resource.data.authorId == request.auth.uid || isOfficer());
+      // 投稿者本人が変えてよいのは「解決済み」の切り替えだけ
+      allow update: if isActive() && (
+                      isOfficer()
+                      || ((resource.data.get('authorId', '') == request.auth.uid || anonAuthorIsMe(postId))
+                          && changedOnly(['resolved', 'resolvedAt']))
+                    );
 
       allow delete: if isActive()
-                    && (resource.data.authorId == request.auth.uid
+                    && (resource.data.get('authorId', '') == request.auth.uid
+                        || anonAuthorIsMe(postId)
                         || isOfficer()
                         // 解決済み投稿の自動削除。掲示板を開いた人が実行する
                         || resource.data.resolved == true);
@@ -316,24 +526,88 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     // comments(掲示板のコメント)
     // ---------------------------------------------------------------------
+    function commentBodyOk() {
+      let d = request.resource.data;
+      return (d.type == 'text' && d.body is string && d.body.size() > 0)
+             || (d.type == 'stamp' && isValidStamp(d.stamp));
+    }
+
     match /comments/{commentId} {
       allow read: if isActive();
 
       allow create: if isActive()
-                    && request.resource.data.authorId == request.auth.uid;
+                    && exists(docPath('posts', request.resource.data.postId))
+                    && commentBodyOk()
+                    && (
+                         // 通常のスレッド: 投稿者を本体に持つ
+                         (!postIsAnonymous(request.resource.data.postId)
+                          && request.resource.data.keys().hasOnly(
+                               ['postId', 'authorId', 'type', 'body', 'stamp', 'createdAt'])
+                          && request.resource.data.authorId == request.auth.uid)
+                         // 匿名スレッド: 投稿者は anonymousAuthors。本体には表示名(匿名A など)だけ
+                         || (postIsAnonymous(request.resource.data.postId)
+                             && request.resource.data.keys().hasOnly(
+                                  ['postId', 'anonLabel', 'type', 'body', 'stamp', 'createdAt'])
+                             && request.resource.data.anonLabel is string
+                             && request.resource.data.anonLabel.matches('^匿名[A-Z]{1,3}$')
+                             && anonAuthorIsMeAfter(commentId))
+                       );
 
-      // リアクションは誰でも付け外しできる。本文は変更させない
-      allow update: if isActive() && changedOnly(['reactions']);
+      allow update: if isActive() && (
+        // リアクション(自分のIDの付け外しだけ)
+        isOwnReactionToggle()
+        // 既存の匿名コメントの移行(幹部のみ。authorId を外して表示名を入れる)
+        || (isOfficer()
+            && postIsAnonymous(resource.data.postId)
+            && changedOnly(['authorId', 'anonLabel'])
+            && !('authorId' in request.resource.data))
+      );
 
       allow delete: if isActive() && (
-        // 自分のコメント
-        resource.data.authorId == request.auth.uid
+        resource.data.get('authorId', '') == request.auth.uid
+        || anonAuthorIsMe(commentId)
         || isOfficer()
         // 投稿削除に伴う巻き込み削除(投稿者がコメント→投稿の順で消す)
         || postAuthorIsMe(resource.data.postId)
         // 解決済み投稿の自動削除(投稿→コメントの順で消えるため既に不在)
-        || !exists(/databases/$(database)/documents/posts/$(resource.data.postId))
+        || !exists(docPath('posts', resource.data.postId))
       );
+    }
+
+    // ---------------------------------------------------------------------
+    // anonymousAuthors(匿名の投稿・コメントの投稿者)
+    //
+    // ドキュメントID = 投稿またはコメントのID。
+    // 読めるのは幹部と本人だけ。投稿者の記録は残るので「データは削除しない」は守れる。
+    // ---------------------------------------------------------------------
+    match /anonymousAuthors/{targetId} {
+      allow read: if isOfficer()
+                  || (isActive() && resource.data.authorId == request.auth.uid);
+
+      allow create: if isActive()
+                    && request.resource.data.authorId is string
+                    && request.resource.data.kind in ['post', 'comment']
+                    && request.resource.data.postId is string
+                    && (
+                         // 新しく匿名で書く: 同じバッチで本体を作る
+                         (request.resource.data.authorId == request.auth.uid
+                          && request.resource.data.keys().hasOnly(['authorId', 'kind', 'postId', 'seenCommentCount'])
+                          && !exists(docPath(request.resource.data.kind == 'post' ? 'posts' : 'comments', targetId))
+                          && existsAfter(docPath(request.resource.data.kind == 'post' ? 'posts' : 'comments', targetId)))
+                         // 既存の匿名投稿の移行(幹部のみ)。本体の authorId と一致していること
+                         || (isOfficer()
+                             && exists(docPath(request.resource.data.kind == 'post' ? 'posts' : 'comments', targetId))
+                             && get(docPath(request.resource.data.kind == 'post' ? 'posts' : 'comments', targetId))
+                                  .data.get('authorId', '') == request.resource.data.authorId)
+                       );
+
+      // 匿名投稿の投稿者が、コメントのお知らせを作った位置を進める
+      allow update: if isActive()
+                    && resource.data.authorId == request.auth.uid
+                    && changedOnly(['seenCommentCount'])
+                    && request.resource.data.seenCommentCount is int;
+
+      allow delete: if false;
     }
 
     // ---------------------------------------------------------------------
@@ -343,20 +617,16 @@ service cloud.firestore {
       allow read: if isActive();
 
       allow create: if isActive()
-                    && request.resource.data.senderId == request.auth.uid;
+                    && request.resource.data.senderId == request.auth.uid
+                    && (request.resource.data.get('type', 'text') != 'stamp'
+                        || isValidStamp(request.resource.data.stamp));
 
-      // リアクションのみ。発言の改ざんはできない。
-      // 取り消し済みのメッセージには新たにリアクションを付けられない
+      // リアクションのみ。取り消し済みのメッセージには付けられない
       allow update: if isActive()
-                    && changedOnly(['reactions'])
+                    && isOwnReactionToggle()
                     && resource.data.get('deleted', false) == false;
 
-      // 本人による取り消し(v1.3.1)。
-      // 本文は実際に空にする。Firestore の読み取り権限はドキュメント単位で、
-      // 「本文は残したまま表示だけ隠す」はクライアントから読めてしまうため。
-      // senderId と createdAt は残るので「誰がいつ発言して、それを取り消した」
-      // という記録自体は消えない(チャットログは残す方針を維持)。
-      // 一度取り消したものは元に戻せない(deleted == false が条件)。
+      // 本人による取り消し(v1.3.1)。本文は実際に空にする
       allow update: if isActive()
                     && resource.data.senderId == request.auth.uid
                     && resource.data.get('deleted', false) == false
@@ -365,7 +635,6 @@ service cloud.firestore {
                     && request.resource.data.get('text', '') == ''
                     && request.resource.data.get('stamp', '') == '';
 
-      // チャットログは残す方針(物理削除は禁止のまま)
       allow delete: if false;
     }
 

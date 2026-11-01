@@ -61,19 +61,26 @@ export function useRoleApprovals() {
     fetchData();
   }, []);
 
-  // 申請が成立したときに、実際のロール変更を実行する
+  /**
+   * 申請が成立したときに、実際の役職変更を反映する。
+   *
+   * v1.3.2 から、幹部でも Member の role / positions を自由には変えられない。
+   * 反映する申請のID(appliedRequestId)を一緒に書き込み、ルールが
+   * 「その申請が承認済みで、内容どおりの変更か」を確かめる。
+   * そのため、**申請を approved にしてから**ここを呼ぶこと。
+   */
   const executeChange = async (req: RoleRequestView) => {
     const targetRef = doc(db, "members", req.targetMemberId);
     if (req.type === "assign_position" && req.position) {
-      // 役職付与:排他ロールなら既存保持者から外す
-      const exclusive = ["サークル長", "副サークル長", "会計担当"];
+      // 役職付与:排他の役職なら、前の担当者から外す
+      const exclusive: Position[] = ["サークル長", "副サークル長", "会計担当"];
       if (exclusive.includes(req.position)) {
-        // 同じ役職を持つ他メンバーから外す
         for (const m of await fetchAllMembers()) {
           const positions: Position[] = m.positions ?? [];
           if (m.id !== req.targetMemberId && positions.includes(req.position)) {
             await updateDoc(doc(db, "members", m.id), {
               positions: positions.filter((p) => p !== req.position),
+              appliedRequestId: req.id,
             });
           }
         }
@@ -82,11 +89,18 @@ export function useRoleApprovals() {
       const targetSnap = await getDoc(targetRef);
       const current: Position[] = (targetSnap.data() as { positions?: Position[] }).positions ?? [];
       if (!current.includes(req.position)) {
-        await updateDoc(targetRef, { positions: [...current, req.position] });
+        await updateDoc(targetRef, {
+          positions: [...current, req.position],
+          appliedRequestId: req.id,
+        });
       }
     } else if (req.type === "dismiss_officer") {
       // 幹部→一般に降格
-      await updateDoc(targetRef, { role: "一般メンバー", positions: [] });
+      await updateDoc(targetRef, {
+        role: "一般メンバー",
+        positions: [],
+        appliedRequestId: req.id,
+      });
     }
     // dismiss_leader / assign_vice_leader は今回のUIでは発議していないため省略
   };
@@ -98,34 +112,46 @@ export function useRoleApprovals() {
     if (req.approvals.includes(currentMember.id)) return;
 
     const newApprovals = [...req.approvals, currentMember.id];
+    const completes = newApprovals.length >= req.requiredApprovals;
     try {
-      if (newApprovals.length >= req.requiredApprovals) {
-        await executeChange(req);
-        await updateDoc(doc(db, "roleChangeRequests", id), {
-          approvals: arrayUnion(currentMember.id),
-          status: "approved",
-        });
-        // 申請者に結果を通知
-        await createNotification(
-          req.proposedBy,
-          "approval_result",
-          `${req.targetName}さんへの「${req.typeLabel}」が承認されました`,
-          "/roster"
-        );
-        setRequests((prev) => prev.filter((r) => r.id !== id));
-        window.alert("承認され、変更が反映されました。");
-      } else {
-        await updateDoc(doc(db, "roleChangeRequests", id), {
-          approvals: arrayUnion(currentMember.id),
-        });
-        setRequests((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, approvals: newApprovals } : r))
-        );
-      }
+      // 承認(自分のIDを1つ足す)。必要数に達したらこの時点で approved にする
+      await updateDoc(doc(db, "roleChangeRequests", id), {
+        approvals: arrayUnion(currentMember.id),
+        status: completes ? "approved" : "pending",
+      });
     } catch (e) {
       console.error("承認に失敗しました", e);
       window.alert("承認に失敗しました。");
+      return;
     }
+
+    if (!completes) {
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, approvals: newApprovals } : r))
+      );
+      return;
+    }
+
+    try {
+      await executeChange(req);
+    } catch (e) {
+      // 申請は承認済みになっているので、反映だけをやり直せば済む
+      console.error("役職変更の反映に失敗しました", e);
+      window.alert(
+        "承認は完了しましたが、役職の反映に失敗しました。\n\n" +
+          "時間をおいて、名簿から対象者の役職を確認してください。"
+      );
+    }
+
+    // 申請者に結果を通知
+    await createNotification(
+      req.proposedBy,
+      "approval_result",
+      `${req.targetName}さんへの「${req.typeLabel}」が承認されました`,
+      "/roster"
+    );
+    setRequests((prev) => prev.filter((r) => r.id !== id));
+    window.alert("承認され、変更が反映されました。");
   };
 
   const reject = async (id: string) => {

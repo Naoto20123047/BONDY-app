@@ -16,103 +16,50 @@
  *     サーバーが無い以上どうにもならないため、確実性が落ちる点は許容する。
  *
  * 全体チャットの発言は対象外。「チャットは通知のない交流の場」という方針は維持する。
+ *
+ * **v1.3.2: アプリからは本文を送らない。**
+ * 以前は本文をそのまま Worker に渡していたため、在籍者なら誰でも
+ * アプリの公式通知に見える形で任意の文章をサークル全体に流せた。
+ * 今は「種類と対象のID」だけを送り、Worker がその ID で Firestore を読んで
+ * 文面を組み立てる。読み取りは呼び出した人の権限で行うので、その人が
+ * 読めないものは送れない。同じ対象への通知は1回だけ(Worker が記録する)。
  */
 
 import { callWorker, isWorkerConfigured } from "./workerClient";
 
-/** アプリ内のパスから、Teams に貼る絶対URLを作る */
-const linkTo = (path: string): string => `${window.location.origin}${path}`;
+/** Teams に流せる通知の種類。文面は Worker 側(worker/src/teams.ts)にある */
+export type TeamsNotifyType = "post" | "form" | "band" | "equipment";
 
 /**
- * Teams にテキストを送る。失敗しても例外は投げない。
+ * Teams への通知を Worker に頼む。失敗しても例外は投げない。
  * Worker が未設定の間は何もしない(ローカル開発やデプロイ前でも動くように)。
  */
-export async function notifyTeams(text: string): Promise<void> {
+async function requestTeamsNotify(type: TeamsNotifyType, id: string): Promise<void> {
   if (!isWorkerConfigured()) return;
   try {
-    await callWorker("/notify/teams", { text });
+    await callWorker("/notify/teams", { type, id });
   } catch (e) {
     console.error("Teamsへの通知に失敗しました", e);
   }
 }
 
 /**
- * 掲示板の新規投稿
- *
- * 本文の抜粋は載せない。
+ * 掲示板の新規投稿。
  *
  * **匿名投稿は通知しない。**
  * Teams の Workflows は投稿の差出人として「フローの所有者」の氏名を必ず表示し、
  * これを消す設定が存在しない。カード本文を「匿名のメンバー」にしても、
  * 差出人欄にフロー所有者の氏名が並ぶため、その人が投稿したと誤読される。
- * 匿名で書いた人が目立ちたくないことを踏まえ、全体チャネルには流さない。
- * (v1.2.0 で通知経由の実名漏れを塞いだ方針の延長)
- *
- * この判断は通知側で閉じる。呼び出し側が忘れても漏れないよう、ここで弾く。
+ * Worker 側でも匿名投稿は弾いている。
  */
-export async function notifyNewPost(params: {
-  postId: string;
-  category: string;
-  title: string;
-  authorName: string;
-  isAnonymous: boolean;
-}): Promise<void> {
-  if (params.isAnonymous) return;
+export const notifyNewPost = (postId: string) => requestTeamsNotify("post", postId);
 
-  await notifyTeams(
-    [
-      `【掲示板】${params.category}`,
-      `「${params.title}」`,
-      `投稿者: ${params.authorName}さん`,
-      linkTo(`/board/${params.postId}`),
-    ].join("\n")
-  );
-}
+/** フォームの新規作成(幹部のみ) */
+export const notifyNewForm = (formId: string) => requestTeamsNotify("form", formId);
 
-/** フォームの新規作成 */
-export async function notifyNewForm(params: {
-  formId: string;
-  typeLabel: string;
-  title: string;
-  deadline: string;
-}): Promise<void> {
-  await notifyTeams(
-    [
-      `【フォーム】${params.typeLabel}`,
-      `「${params.title}」`,
-      `締切: ${params.deadline}`,
-      linkTo(`/forms/${params.formId}`),
-    ].join("\n")
-  );
-}
+/** バンドの結成申請(そのバンドのメンバーのみ) */
+export const notifyNewBand = (bandId: string) => requestTeamsNotify("band", bandId);
 
-/** バンドの結成申請 */
-export async function notifyNewBand(params: {
-  bandName: string;
-  memberNames: string[];
-}): Promise<void> {
-  await notifyTeams(
-    [
-      "【バンド】結成が申請されました",
-      `「${params.bandName}」`,
-      `メンバー: ${params.memberNames.join("、")}`,
-      linkTo("/bands"),
-    ].join("\n")
-  );
-}
-
-/** 機材の新規登録 */
-export async function notifyNewEquipment(params: {
-  name: string;
-  category: string;
-  quantity: number;
-}): Promise<void> {
-  await notifyTeams(
-    [
-      "【機材】新しい機材が登録されました",
-      `「${params.name}」${params.quantity}点`,
-      `分類: ${params.category}`,
-      linkTo("/equipment"),
-    ].join("\n")
-  );
-}
+/** 機材の新規登録(幹部のみ) */
+export const notifyNewEquipment = (equipmentId: string) =>
+  requestTeamsNotify("equipment", equipmentId);

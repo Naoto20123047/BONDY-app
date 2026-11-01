@@ -3,6 +3,7 @@ import { collection, getDocs, query, where, updateDoc, deleteDoc, doc } from "fi
 import { db } from "../lib/firebase";
 import { useAuth } from "./AuthContext";
 import type { AppNotification } from "../Types/types";
+import { checkAnonymousPostComments } from "./anon";
 
 // 保持する既読通知の最大件数(これを超えた古い既読は削除)
 const MAX_READ_KEEP = 5;
@@ -19,6 +20,10 @@ export function useNotifications() {
         return;
       }
       try {
+        // 匿名で投稿したスレッドへのコメントは、ここで自分宛てにお知らせを作る
+        // (コメントした人は投稿者が分からず、相手宛ての通知を作れないため)
+        await checkAnonymousPostComments(member.id);
+
         const q = query(
           collection(db, "notifications"),
           where("targetMemberId", "==", member.id)

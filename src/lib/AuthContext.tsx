@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from "firebase/firestore";
 import { auth, db } from "./firebase";
@@ -23,6 +23,13 @@ interface AuthContextValue {
   reactivate: () => Promise<void>; // 退会から復帰する(本人操作)
   expelledBlocked: boolean;        // 除籍済みのためログインを拒否した直後か(A-3)
   clearExpelledBlocked: () => void; // 上の表示を消す
+  emailVerified: boolean;          // メールアドレスの確認が済んでいるか(v1.3.2)
+  /**
+   * 確認状況を取り直す。確認メールのリンクを別のタブで開いた後に使う。
+   * ルールは ID トークンの email_verified を見るため、トークンも取り直す。
+   * 確認済みになったら true を返す。
+   */
+  reloadUser: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -36,6 +43,8 @@ const AuthContext = createContext<AuthContextValue>({
   reactivate: async () => {},
   expelledBlocked: false,
   clearExpelledBlocked: () => {},
+  emailVerified: false,
+  reloadUser: async () => false,
 });
 
 export function useAuth() {
@@ -49,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [withdrawnMember, setWithdrawnMember] = useState<Member | null>(null);
   const [expelledBlocked, setExpelledBlocked] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
 
   // uidからmembersドキュメントを取得する。
   // 在籍中のメンバーとして読み込めた場合だけ true を返す。
@@ -127,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Firebaseの認証状態の変化を監視する
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
+      setEmailVerified(user?.emailVerified ?? false);
       if (user) {
         const active = await loadMember(user.uid);
         // 在籍中でなければ氏名マップを読みに行かない(ルール上も読めない)
@@ -174,6 +185,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setExpelledBlocked(false);
   };
 
+  const reloadUser = useCallback(async (): Promise<boolean> => {
+    const user = auth.currentUser;
+    if (!user) return false;
+    try {
+      await user.reload();
+      if (user.emailVerified) {
+        // ルール側は ID トークンの email_verified を見るので、取り直しが要る
+        await user.getIdToken(true);
+      }
+      setEmailVerified(user.emailVerified);
+      return user.emailVerified;
+    } catch (e) {
+      console.error("確認状況の取得に失敗しました", e);
+      return false;
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -187,6 +215,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         reactivate,
         expelledBlocked,
         clearExpelledBlocked,
+        emailVerified,
+        reloadUser,
       }}
     >
       {children}

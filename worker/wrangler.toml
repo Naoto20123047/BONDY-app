@@ -12,6 +12,10 @@ FIREBASE_PROJECT_ID = "bondy-app-66ca4"
 # CORS を許可するオリジン(カンマ区切り)。開発時の Vite も含めてある。
 ALLOWED_ORIGINS = "https://bondy-app-66ca4.web.app,https://bondy-app-66ca4.firebaseapp.com,http://localhost:5173"
 
+# Teams の通知に載せるアプリのURL(v1.3.2)。
+# 以前はアプリが送ってきた本文をそのまま流していたが、今は Worker が文面を組み立てる
+APP_ORIGIN = "https://bondy-app-66ca4.web.app"
+
 # 紹介ページの写真の置き場所。
 #
 # Google Drive はサービスアカウントに保存容量が無く(403 storageQuotaExceeded)、

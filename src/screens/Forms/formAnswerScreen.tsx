@@ -9,7 +9,6 @@ export default function FormAnswerScreen() {
     form,
     isEvent,
     isExpired,
-    unpaidMemberNames,
     selectableBands,
     bandId,
     selectBand,
@@ -87,19 +86,6 @@ export default function FormAnswerScreen() {
             </div>
           )}
 
-          {isEvent && bandId && unpaidMemberNames.length > 0 && !isExpired && (
-            <div className="answer-unpaid-notice">
-              <i className="ti ti-alert-triangle" />
-              <div>
-                <p className="answer-unpaid-title">会費未納のメンバーがいます</p>
-                <p className="answer-unpaid-text">
-                  今年度の会費が未納:{unpaidMemberNames.join("、")}
-                  <br />
-                  未納の場合、イベントに出演できないことがあります。回答は可能ですが、早めに納入してください。
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

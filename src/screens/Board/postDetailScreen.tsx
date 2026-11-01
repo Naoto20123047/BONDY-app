@@ -4,7 +4,7 @@ import "./postDetailScreen.css";
 import { usePostDetail } from "./usePostDetail";
 import { useAuth } from "../../lib/AuthContext";
 import { emojiStamps, imageStamps, quickReactions } from "../../lib/stamps";
-import { buildAnonLabelMap, anonAvatarColorId } from "../../lib/anon";
+import { anonAvatarColorId } from "../../lib/anon";
 import MemberAvatar from "../Layout/MemberAvatar";
 
 const categoryClass = (c: string) => {
@@ -85,29 +85,29 @@ export default function PostDetailScreen() {
     );
   }
 
-  // 匿名スレッドの場合、コメントの投稿者ごとに「匿名A」「匿名B」...のラベルを割り振る
-  const anonLabelMap = post.isAnonymous ? buildAnonLabelMap(comments) : {};
+  // 匿名スレッドでは、コメント自体が持つ表示名(匿名A など)を使う。
+  // 投稿者はコメント本体に無い(v1.3.2 で anonymousAuthors に分けた)
+  const anonName = (c: (typeof comments)[number]) => c.anonLabel ?? "匿名";
 
   const commentDisplayName = (c: (typeof comments)[number]) => {
     if (!post.isAnonymous) return c.authorName;
-    const label = anonLabelMap[c.authorId] ?? "匿名";
-    return c.isMine ? `${label}（あなた）` : label;
+    return c.isMine ? `${anonName(c)}（あなた）` : anonName(c);
   };
 
   const commentAvatarLabel = (c: (typeof comments)[number]) => {
     if (!post.isAnonymous) return c.authorName.charAt(0);
-    return (anonLabelMap[c.authorId] ?? "匿名").slice(-1);
+    return anonName(c).slice(-1);
   };
 
   const commentAvatarColor = (c: (typeof comments)[number]) => {
-    if (!post.isAnonymous) return memberMap[c.authorId]?.avatarColor;
-    return anonAvatarColorId(anonLabelMap[c.authorId] ?? "匿名");
+    if (!post.isAnonymous) return memberMap[c.authorId ?? ""]?.avatarColor;
+    return anonAvatarColorId(anonName(c));
   };
 
   // 匿名スレッドではアバター画像を使わない。実名が推測されるため
   // (アイコンカラーを使わないのと同じ理由)
   const commentAvatarThumb = (c: (typeof comments)[number]) =>
-    post.isAnonymous ? undefined : memberMap[c.authorId]?.avatarThumb;
+    post.isAnonymous ? undefined : memberMap[c.authorId ?? ""]?.avatarThumb;
 
   const handleComment = async () => {
     const ok = await addComment(commentText);
@@ -528,4 +528,4 @@ export default function PostDetailScreen() {
       })()}
     </div>
   );
-}
+}

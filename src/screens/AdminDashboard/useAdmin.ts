@@ -3,6 +3,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { fetchActiveMembers } from "../../lib/members";
 import { currentFiscalYear } from "../../lib/grade";
+import { runV132Migrations } from "../../lib/migrations";
 
 interface AdminSummary {
   activeMembers: number;
@@ -22,6 +23,8 @@ export function useAdmin() {
 
   useEffect(() => {
     const fetchSummary = async () => {
+      // 既存データの移行(v1.3.2)。移行済みなら読むだけで何も書かない
+      await runV132Migrations();
       try {
         // 在籍中メンバー
         const members = await fetchActiveMembers();

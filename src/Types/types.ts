@@ -77,6 +77,12 @@ export interface Member {
   joinedAt?: string;
   withdrawnAt?: string;
   expelledAt?: string;
+  /**
+   * 最後に反映した役職変更の申請ID(v1.3.2)。
+   * 役職(role / positions)を変えるときは、ルールがこの申請を読んで
+   * 「承認済みで、内容どおりか」を確かめる。画面では使わない。
+   */
+  appliedRequestId?: string;
 }
 
 // ===== 役職変更の申請(幹部が複数人で承認する) =====
@@ -117,6 +123,14 @@ export interface Band {
   id: string;
   name: string;
   members: BandMember[];
+  /**
+   * members と同じ並びの、IDだけの配列(v1.3.2)。
+   * Firestore のルールは配列の中のオブジェクトを検索できないため、
+   * 「そのバンドのメンバーか」の判定用に持たせている。
+   * **members を書き換えるときは必ず一緒に更新すること。**
+   * 既存のバンドには、幹部が管理画面を開いたときに書き足される(lib/migrations.ts)。
+   */
+  memberIds?: string[];
   status: BandStatus;
 }
 
@@ -154,6 +168,12 @@ export interface FormResponse {
   answers: Record<string, string>;
   bandId?: string;
   submittedAt: string;
+  /**
+   * バンド回答を最後に編集した人(v1.3.2)。
+   * 以前は memberId を上書きしていたが、回答者を書き換えられる穴になるため、
+   * memberId は最初に回答した人のまま固定し、こちらに残す。
+   */
+  lastEditedBy?: string;
 }
 
 // ===== TODO(幹部の作業管理) =====
@@ -218,13 +238,19 @@ export interface EquipmentRequest {
 // ===== 掲示板 =====
 //
 // 匿名投稿は表示だけでなく通知にも影響する(lib/teamsNotify.ts を参照)。
-// authorId は匿名でも保存する。荒れたときに幹部が辿れるようにするため。
+//
+// v1.3.2 から、**匿名の投稿・コメントは本体に投稿者(authorId)を持たない。**
+// 以前は本体に authorId を残していたため、画面では「匿名」でも、
+// 部員なら誰でも SDK から投稿者を調べられた。
+// 投稿者は anonymousAuthors(幹部と本人しか読めない)に分けて残している。
+// 荒れたときに幹部が辿れる点と「データは削除しない」方針は変わらない。
 
 export type PostCategory = "メンバー募集" | "機材" | "告知・連絡" | "その他";
 
 export interface Post {
   id: string;
-  authorId: string;
+  /** 実名の投稿だけが持つ。匿名投稿には無い(anonymousAuthors を見る) */
+  authorId?: string;
   category: PostCategory;
   title: string;
   body: string;
@@ -237,9 +263,29 @@ export interface Post {
 export interface Comment {
   id: string;
   postId: string;
-  authorId: string;
+  /** 実名のスレッドのコメントだけが持つ */
+  authorId?: string;
+  /** 匿名スレッドのコメントの表示名(匿名A など)。同じ人は同じ名前になる */
+  anonLabel?: string;
   body: string;
   createdAt: string;
+}
+
+/**
+ * 匿名の投稿・コメントの投稿者。ドキュメントID = 投稿またはコメントのID。
+ * 読めるのは幹部と本人だけ。
+ */
+export interface AnonymousAuthor {
+  id: string;
+  authorId: string;
+  kind: "post" | "comment";
+  postId: string;
+  /**
+   * 匿名投稿の投稿者だけが使う。コメントのお知らせを作った時点のコメント数。
+   * コメントした人は投稿者が分からず通知を作れないため、
+   * 投稿者がアプリを開いたときにこれと比べて自分宛てに作る。
+   */
+  seenCommentCount?: number;
 }
 
 // ===== アイコン画像 =====
