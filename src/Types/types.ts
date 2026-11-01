@@ -50,6 +50,17 @@ export type Position =
  */
 export type MemberStatus = "active" | "withdrawn" | "expelled";
 
+/**
+ * 区分(v1.4.0)。
+ *  - 在学生: 大学のアドレスで登録した人。登録してすぐ全機能が使える
+ *  - 教員:   顧問など。どのアドレスでも登録でき、幹部の確認までは一部の機能だけ
+ *  - OB:     卒業生。教員と同じく幹部の確認待ちで登録する
+ *
+ * v1.4.0 より前のメンバーは category を持たない。その場合は isOB から判定する
+ * (lib/memberCategory.ts の memberCategory() を使うこと)。
+ */
+export type MemberCategory = "在学生" | "教員" | "OB";
+
 export interface Member {
   id: string;
   uid: string;
@@ -66,6 +77,17 @@ export interface Member {
   parts: string[];
   role: Role;
   positions: Position[];
+  /** 区分(v1.4.0)。未設定は isOB から判定する */
+  category?: MemberCategory;
+  /** OB の卒業年度(v1.4.0) */
+  graduationYear?: number;
+  /**
+   * 幹部の確認が済んでいるか(v1.4.0)。
+   * 教員・OBとして登録した人は false で作られ、幹部が承認すると true になる。
+   * **未設定(既存のメンバー・在学生)は確認済みとして扱う。**
+   * false の間は、名簿・チャット・掲示板・アーカイブ・フォームなどが使えない。
+   */
+  approved?: boolean;
   isOB: boolean;
   duesPaid: boolean;
   status: MemberStatus;
@@ -452,7 +474,8 @@ export type NotificationType =
   | "equipment_result"     // 機材の承認・却下・返却確認(申請者・本人へ)
   | "equipment_overdue"    // 機材延滞
   | "band_member_changed"  // バンドメンバーの追加・脱退
-  | "post_comment";        // 掲示板の投稿にコメントが付いた
+  | "post_comment"         // 掲示板の投稿にコメントが付いた
+  | "live_update";         // ライブの出演募集・出演決定・提出のお願い(v1.4.0)
 
 export interface AppNotification {
   id: string;
@@ -518,4 +541,124 @@ export interface ArchiveItem {
   eventDate: string;
   createdBy: string;
   createdAt: string;
+}
+
+// ===== ライブ準備(v1.4.0) =====
+//
+// 幹部がライブを作成して出演を募集し、バンドが申し込む。
+// 締切後に幹部が出演順を決めると、出演バンドはセットリストと編成・機材を提出する。
+// 提出された内容から、当日の資料(タイムテーブル・セットリスト・外部PA向けチャンネル表)を作る。
+//
+// ライブの出演確認はフォームではなくこの申し込みで行う
+// (フォームのバンドごとの回答は、ライブ以外のイベントのために残してある)。
+// 読み書きは lib/live.ts にまとめてある。
+
+/** 出演順の1枠 */
+export interface LiveSlot {
+  bandId: string;
+  /** 表示用の写し(バンド名が変わっても資料は作れるように) */
+  bandName: string;
+  /** 持ち時間(分)。転換の時間は含まない */
+  minutes: number;
+}
+
+export interface Live {
+  id: string;
+  title: string;
+  /** 開催日(YYYY-MM-DD) */
+  date: string;
+  venue: string;
+  /** 開場・開演・退館の時刻(HH:MM) */
+  openTime: string;
+  startTime: string;
+  closeTime: string;
+  /** 出演申し込みの締切(YYYY-MM-DD) */
+  applyDeadline: string;
+  /** セットリスト・編成の提出締切(YYYY-MM-DD) */
+  submitDeadline: string;
+  /**
+   * 締切日の終わり(日本時間 23:59:59)をミリ秒にしたもの。
+   * Firestore のルールで「締切を過ぎたら書き込めない」を判定するために持つ
+   */
+  applyClosesAt: number;
+  submitClosesAt: number;
+  /** 転換の時間(分) */
+  changeoverMinutes: number;
+  /** 出演順。幹部が決めるまでは空 */
+  lineup: LiveSlot[];
+  /** lineup のバンドIDだけ(ルールでの判定用。lineup と必ず揃える) */
+  lineupBandIds: string[];
+  /** 出演順を出演バンドに知らせた日時。これ以降、出演バンドが提出できる */
+  lineupPublishedAt?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+/** 出演の申し込み(lives/{liveId}/entries/{bandId})。バンドで1つ */
+export interface LiveEntry {
+  id: string; // = bandId
+  bandId: string;
+  bandName: string;
+  participate: boolean;
+  /** 希望の持ち時間(分) */
+  desiredMinutes: number;
+  /** 出演できない時間帯(自由記述) */
+  unavailable: string;
+  /** 幹部へのメモ */
+  note: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+export type SetlistItemKind = "song" | "mc";
+
+export interface SetlistItem {
+  id: string;
+  kind: SetlistItemKind;
+  /** 曲名(MCのときは空) */
+  title: string;
+  songType?: "オリジナル" | "コピー";
+  /** 原曲のアーティスト(コピーのとき) */
+  artist?: string;
+  /** 演奏時間(秒) */
+  seconds: number;
+  /** PA・照明へのメモ */
+  note?: string;
+}
+
+/** セットリスト(lives/{liveId}/setlists/{bandId}) */
+export interface LiveSetlist {
+  id: string; // = bandId
+  bandId: string;
+  items: SetlistItem[];
+  submittedAt: string;
+  updatedBy: string;
+}
+
+/** 編成・機材の1人分 */
+export interface StageMember {
+  memberId: string;
+  name: string;
+  /** パート(Vo / Gt / Ba / Dr / Key / DTM など) */
+  part: string;
+  /** メインの機材(マイク・アンプ・ドラムセット・キーボード)を会場のものにするか */
+  useVenueGear: boolean;
+  /** キーボード・DTM をステレオ(DI 2本)で出すか */
+  stereo: boolean;
+  /** 持ち込む機材・備考(例: エフェクター、スネア) */
+  extras: string;
+  /** ステージ上の立ち位置(0〜100 の割合。左上が 0,0、下が客席側) */
+  x: number;
+  y: number;
+}
+
+/** 編成・機材とステージ配置(lives/{liveId}/stagePlans/{bandId}) */
+export interface LiveStagePlan {
+  id: string; // = bandId
+  bandId: string;
+  members: StageMember[];
+  /** モニター(返し)の要望 */
+  monitorRequest: string;
+  submittedAt: string;
+  updatedBy: string;
 }

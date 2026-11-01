@@ -5,6 +5,9 @@ import { useEditProfile } from "./useEditProfile";
 import { calcGrade } from "../../lib/grade";
 import { PART_OPTIONS } from "../../lib/parts";
 import { AVATAR_COLORS, avatarStyle } from "../../lib/avatarColors";
+import { memberCategory, isPendingApproval } from "../../lib/memberCategory";
+import { memberSubtitle } from "../../lib/grade";
+import EmailChangeSection from "./emailChangeSection";
 
 export default function EditProfileScreen() {
   const navigate = useNavigate();
@@ -132,24 +135,37 @@ export default function EditProfileScreen() {
         />
       </div>
 
-      <div className="edit-field">
-        <label className="edit-label">学部</label>
-        <input className="edit-input" value={member.faculty} disabled />
-      </div>
+      {memberCategory(member) === "在学生" ? (
+        <>
+          <div className="edit-field">
+            <label className="edit-label">学部</label>
+            <input className="edit-input" value={member.faculty} disabled />
+          </div>
 
-      <div className="edit-field">
-        <label className="edit-label">学籍番号</label>
-        <input className="edit-input" value={member.studentId} disabled />
-      </div>
+          <div className="edit-field">
+            <label className="edit-label">学籍番号</label>
+            <input className="edit-input" value={member.studentId} disabled />
+          </div>
 
-      <div className="edit-field">
-        <label className="edit-label">入学年度 / 学年</label>
-        <input
-          className="edit-input"
-          value={`${member.enrollmentYear}年度入学(${calcGrade(member.enrollmentYear, member.isOB)})`}
-          disabled
-        />
-      </div>
+          <div className="edit-field">
+            <label className="edit-label">入学年度 / 学年</label>
+            <input
+              className="edit-input"
+              value={`${member.enrollmentYear}年度入学(${calcGrade(member.enrollmentYear, member.isOB, member.category)})`}
+              disabled
+            />
+          </div>
+        </>
+      ) : (
+        <div className="edit-field">
+          <label className="edit-label">区分</label>
+          <input
+            className="edit-input"
+            value={`${memberSubtitle(member)}${isPendingApproval(member) ? "(幹部の確認待ち)" : ""}`}
+            disabled
+          />
+        </div>
+      )}
 
       <div className="edit-field">
         <label className="edit-label">パート(複数選択可)</label>
@@ -179,6 +195,10 @@ export default function EditProfileScreen() {
           {saving ? "保存中..." : "保存する"}
         </button>
       </div>
+
+      {/* ログイン用メールアドレスの変更(v1.4.0)。卒業前に外部のアドレスへ変えておけば、
+          卒業後も同じアカウントで使い続けられる */}
+      <EmailChangeSection />
     </div>
   );
 }

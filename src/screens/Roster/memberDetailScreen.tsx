@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import "./memberDetailScreen.css";
 import { useMemberDetail, assignablePositions } from "./useMemberDetail";
 import { useAuth } from "../../lib/AuthContext";
-import { calcGrade, isNewMember } from "../../lib/grade";
+import { isNewMember, memberSubtitle } from "../../lib/grade";
 import MemberAvatar from "../Layout/MemberAvatar";
 import type { Position } from "../../Types/types";
 
@@ -72,7 +72,8 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
             {member.nickname && <span className="detail-nickname">（{member.nickname}）</span>}
           </h1>
           <p className="detail-sub">
-            {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}・{member.studentId}
+            {memberSubtitle(member)}
+            {member.studentId ? `・${member.studentId}` : ""}
           </p>
           <div className="detail-tags">
             {/* 今年度に加入したメンバー */}

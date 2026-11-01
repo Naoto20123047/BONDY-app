@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, doc } from "firebase/firestore"
 import * as XLSX from "xlsx";
 import { db } from "../../lib/firebase";
 import { fetchActiveMembers } from "../../lib/members";
+import { memberCategory } from "../../lib/memberCategory";
 import { useAuth } from "../../lib/AuthContext";
 import { calcGrade, currentFiscalYear } from "../../lib/grade";
 import type { Member } from "../../Types/types";
@@ -43,7 +44,8 @@ export function useDues() {
   const fetchData = async () => {
     try {
       // 在籍中メンバー
-      setAllMembers(await fetchActiveMembers());
+      // 教員は会費の対象外なので一覧に出さない(v1.4.0)。OBは従来どおり分けて表示する
+      setAllMembers((await fetchActiveMembers()).filter((m) => memberCategory(m) !== "教員"));
 
       // dues 全レコード
       const duesSnap = await getDocs(collection(db, "dues"));
@@ -113,7 +115,7 @@ export function useDues() {
         name: m.name,
         studentId: m.studentId,
         faculty: m.faculty,
-        gradeLabel: calcGrade(m.enrollmentYear, m.isOB),
+        gradeLabel: calcGrade(m.enrollmentYear, m.isOB, m.category),
         isOB: m.isOB,
         paid: record ? record.paid : false,
         avatarColor: m.avatarColor,

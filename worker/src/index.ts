@@ -10,7 +10,7 @@
  *   POST /notify/teams        Teams への通知中継。本文は Worker が組み立てる(v1.3.2)
  *   POST /admin/disable-user  Auth アカウントの無効化/有効化  … A-3(除籍)
  *   POST /images/upload       紹介ページ用の画像を保存する(幹部のみ)
- *   POST /images/sign         画像の署名付きURLを発行する(在籍者か、確認済みの大学アドレス)
+ *   POST /images/sign         画像の署名付きURLを発行する(在籍者か、メール確認済みの人)
  *   POST /images/delete       画像を消す(幹部のみ)
  *   GET  /images/file         画像の本体を返す(署名で保護。IDトークンは使わない)
  *
@@ -64,9 +64,6 @@ const MAX_SIGN_BATCH = 60;
  * 以前は image/* をすべて受け付けており、スクリプトを含められる SVG も通った
  */
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-/** 在学生として扱える大学のドメイン(Firestore ルールの isVerifiedUniversityEmail と同じ) */
-const UNIVERSITY_DOMAIN = "@kaishi-pu.ac.jp";
 
 // ---------------------------------------------------------------------------
 // CORS
@@ -401,13 +398,11 @@ async function handleImageSign(
   caller: Caller
 ): Promise<Response> {
   // 見学者(Member ドキュメントを持たない人)にも紹介ページを見せるため、
-  // 在籍者に加えて「メール確認済みの大学アドレス」も通す。
+  // 在籍者に加えて「メールアドレスの確認が済んだ人」も通す。
   // v1.3.2: 以前は「ログイン済み」だけを条件にしていた。
+  // v1.4.0: 教員・OBは大学以外のアドレスで登録するため、アドレスの種類は問わない。
   // pages/intro の読み取り条件(Firestore ルール)と揃えてある。
-  const verifiedStudent =
-    caller.emailVerified &&
-    (caller.email ?? "").toLowerCase().endsWith(UNIVERSITY_DOMAIN);
-  if (!isActiveMember(caller.member) && !verifiedStudent) {
+  if (!isActiveMember(caller.member) && !caller.emailVerified) {
     return json({ error: "forbidden" }, 403, request, env);
   }
   if (!env.IMAGE_SIGNING_KEY) {

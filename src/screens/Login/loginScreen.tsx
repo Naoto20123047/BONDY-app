@@ -14,6 +14,8 @@ export default function LoginScreen() {
     handleSubmit,
     changeMode,
     expelledBlocked,
+    signupType,
+    setSignupType,
   } = useLogin();
 
   const titleMap = {
@@ -45,7 +47,11 @@ export default function LoginScreen() {
         <p className="login-sub">
           {mode === "reset"
             ? "登録済みのメールアドレスに再設定用のリンクを送ります。"
-            : "大学のメールアドレスでご利用いただけます。"}
+            : mode === "signup"
+              ? signupType === "student"
+                ? "在学生は大学のメールアドレスで登録してください。"
+                : "教員・OBの方は、どのメールアドレスでも登録できます。幹部の確認が済むまでは、一部の機能が制限されます。"
+              : "登録済みのメールアドレスでログインしてください。"}
         </p>
 
         {/* A-3: 除籍済みのアカウントでサインインが通ってしまった場合、
@@ -57,12 +63,38 @@ export default function LoginScreen() {
           </p>
         )}
 
+        {mode === "signup" && (
+          <div className="login-field">
+            <label className="login-label">区分</label>
+            <div className="login-segment" role="radiogroup">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={signupType === "student"}
+                className={`login-segment-item ${signupType === "student" ? "active" : ""}`}
+                onClick={() => setSignupType("student")}
+              >
+                在学生
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={signupType === "guest"}
+                className={`login-segment-item ${signupType === "guest" ? "active" : ""}`}
+                onClick={() => setSignupType("guest")}
+              >
+                教員・OB
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="login-field">
           <label className="login-label">メールアドレス</label>
           <input
             className="login-input"
             type="email"
-            placeholder="name@kaishi-pu.ac.jp"
+            placeholder={mode === "signup" && signupType === "guest" ? "name@example.com" : "name@kaishi-pu.ac.jp"}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={handleKeyDown}

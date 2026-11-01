@@ -2,7 +2,7 @@ import { useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
-import { calcGrade } from "../../lib/grade";
+import { memberSubtitle } from "../../lib/grade";
 import "./reactivateScreen.css";
 
 /**
@@ -55,8 +55,7 @@ export default function ReactivateScreen() {
           <div className="reactivate-row">
             <dt>学部・学年</dt>
             <dd>
-              {withdrawnMember.faculty}・
-              {calcGrade(withdrawnMember.enrollmentYear, withdrawnMember.isOB)}
+              {memberSubtitle(withdrawnMember)}
             </dd>
           </div>
           <div className="reactivate-row">

@@ -121,10 +121,11 @@ describe("1. 新規登録", () => {
       setDoc(doc(as("new4"), "members", "new4"), member("new4", { role: "幹部" }))
     );
   });
-  it("紹介ページは確認済みの大学アドレスなら読めるが、未確認では読めない", async () => {
+  it("紹介ページはメール確認済みなら読めるが、未確認では読めない", async () => {
     await assertSucceeds(getDoc(doc(as("v1"), "pages", "intro")));
     await assertFails(getDoc(doc(as("v2", `v2${UNI}`, false), "pages", "intro")));
-    await assertFails(getDoc(doc(as("v3", "v3@gmail.com"), "pages", "intro")));
+    // 教員・OBは大学以外のアドレスで登録するため、アドレスの種類は問わない(v1.4.0)
+    await assertSucceeds(getDoc(doc(as("v3", "v3@gmail.com"), "pages", "intro")));
   });
   it("既存メンバーは確認メールを通っていなくても使える", async () => {
     const db = as("alice", `alice${UNI}`, false);

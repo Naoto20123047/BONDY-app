@@ -71,7 +71,7 @@ export function useBandDetail(id: string | undefined) {
             id: m.id,
             name: m.name,
             studentId: m.studentId,
-            gradeLabel: calcGrade(m.enrollmentYear, m.isOB),
+            gradeLabel: calcGrade(m.enrollmentYear, m.isOB, m.category),
             faculty: m.faculty,
           }))
       );

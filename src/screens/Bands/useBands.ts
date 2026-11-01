@@ -57,7 +57,7 @@ export function useBands() {
       band.members.forEach((bm) => {
         const m = memberMap[bm.memberId];
         if (m) {
-          rows.push([m.name, m.studentId, calcGrade(m.enrollmentYear, m.isOB), bm.part]);
+          rows.push([m.name, m.studentId, calcGrade(m.enrollmentYear, m.isOB, m.category), bm.part]);
         } else {
           rows.push(["不明", "", "", bm.part]);
         }

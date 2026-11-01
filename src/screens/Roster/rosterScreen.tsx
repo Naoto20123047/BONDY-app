@@ -89,7 +89,7 @@ export default function RosterScreen() {
                   {isNewMember(m.joinedAt) && <span className="roster-new">NEW</span>}
                 </span>
                 <span className="roster-meta">
-                  {m.studentId} ・ {calcGrade(m.enrollmentYear, m.isOB)} ・ {formatParts(m.parts)}
+                  {m.studentId ? `${m.studentId} ・ ` : ""}{calcGrade(m.enrollmentYear, m.isOB, m.category)} ・ {formatParts(m.parts)}
                 </span>
               </div>
               {m.positions.length > 0 && (

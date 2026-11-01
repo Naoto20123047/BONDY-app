@@ -1,0 +1,98 @@
+/* ログイン用メールアドレスの変更。入力欄はプロフィール編集(editProfileScreen.css)のものを使う */
+
+.email-change {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.email-change-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.email-change-desc {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+}
+
+.email-change-error {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #FBEDEB;
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+.email-change-submit {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.email-change-submit:disabled,
+.email-change-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.email-change-sent {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--color-accent-bg);
+  margin-bottom: 12px;
+}
+
+.email-change-sent > i {
+  font-size: 20px;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.email-change-sent-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+.email-change-sent-text {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-accent-text);
+  word-break: break-all;
+}
+
+.email-change-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.email-change-secondary {
+  height: 40px;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.email-change-secondary.muted {
+  color: var(--color-text-muted);
+}

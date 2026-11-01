@@ -16,6 +16,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: "/home", label: "ホーム", icon: "ti-home", officerOnly: false },
   { path: "/bands", label: "バンド", icon: "ti-guitar-pick", officerOnly: false },
+  { path: "/live", label: "ライブ", icon: "ti-microphone-2", officerOnly: false },
   { path: "/chat", label: "チャット", icon: "ti-message-circle", officerOnly: false },
   { path: "/board", label: "掲示板", icon: "ti-clipboard-text", officerOnly: false },
   { path: "/roster", label: "名簿", icon: "ti-users", officerOnly: false },

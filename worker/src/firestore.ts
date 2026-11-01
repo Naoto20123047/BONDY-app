@@ -16,6 +16,8 @@ export interface MemberInfo {
   isOB: boolean;
   positions: string[];
   name: string;
+  /** 幹部の確認が済んでいるか(v1.4.0)。未設定は確認済み扱い */
+  approved: boolean;
 }
 
 /** Firestore REST のフィールド表現 */
@@ -68,12 +70,16 @@ export async function fetchMyMember(
       .map((v) => v.stringValue ?? "")
       .filter((v) => v !== ""),
     name: fields.name?.stringValue ?? "",
+    approved: fields.approved?.booleanValue !== false,
   };
 }
 
-/** 在籍中か */
+/**
+ * 在籍中か。
+ * v1.4.0: 幹部の確認待ち(教員・OB)の人は含めない(Firestore ルールの isActive() と同じ)
+ */
 export function isActiveMember(member: MemberInfo | null): boolean {
-  return member !== null && member.status === "active";
+  return member !== null && member.status === "active" && member.approved;
 }
 
 /**

@@ -6,6 +6,9 @@
  * useFormAnswer)に同じ内容で複製されていたため、ここへまとめた(技術的負債 D-1)。
  */
 
+import type { Member, MemberCategory } from "../Types/types";
+import { memberCategory } from "./memberCategory";
+
 /** 現在の年度(4月始まり) */
 export function currentFiscalYear(): number {
   const now = new Date();
@@ -36,10 +39,36 @@ export function isNewMember(joinedAt: string | undefined): boolean {
   return joined === currentFiscalYear();
 }
 
-/** 入学年度と現在日から学年を算出する(4月始まり) */
-export function calcGrade(enrollmentYear: number, isOB: boolean): string {
-  if (isOB) return "OB";
+/**
+ * 入学年度と現在日から学年を算出する(4月始まり)。
+ * v1.4.0 から教員も登録できるため、区分を渡すと「教員」を返す。
+ */
+export function calcGrade(
+  enrollmentYear: number,
+  isOB: boolean,
+  category?: MemberCategory
+): string {
+  if (category === "教員") return "教員";
+  if (isOB || category === "OB") return "OB";
+  if (!enrollmentYear) return "—";
 
   const grade = currentFiscalYear() - enrollmentYear + 1;
   return `${grade}年生`;
+}
+
+/**
+ * 名前の下に出す1行の説明(v1.4.0)。区分によって中身が変わる。
+ *   在学生: 情報学部・3年生
+ *   教員:   教員
+ *   OB:     OB(2023年度卒)
+ */
+export function memberSubtitle(
+  member: Pick<Member, "faculty" | "enrollmentYear" | "isOB" | "category" | "graduationYear">
+): string {
+  const category = memberCategory(member);
+  if (category === "教員") return "教員";
+  if (category === "OB") {
+    return member.graduationYear ? `OB(${member.graduationYear}年度卒)` : "OB";
+  }
+  return `${member.faculty}・${calcGrade(member.enrollmentYear, member.isOB, member.category)}`;
 }

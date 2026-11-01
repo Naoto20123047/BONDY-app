@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchActiveMembers } from "../../lib/members";
+import { fetchActiveMembers, fetchPendingMembers } from "../../lib/members";
+import { memberCategory } from "../../lib/memberCategory";
 import { currentFiscalYear } from "../../lib/grade";
 import { runV132Migrations } from "../../lib/migrations";
 
@@ -9,6 +10,8 @@ interface AdminSummary {
   activeMembers: number;
   pendingRoleApprovals: number;
   pendingBandApprovals: number;
+  /** 幹部の確認待ちの新規登録(教員・OB。v1.4.0) */
+  pendingMemberApprovals: number;
   unpaidDues: number;
 }
 
@@ -17,6 +20,7 @@ export function useAdmin() {
     activeMembers: 0,
     pendingRoleApprovals: 0,
     pendingBandApprovals: 0,
+    pendingMemberApprovals: 0,
     unpaidDues: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -56,15 +60,18 @@ export function useAdmin() {
           if (data.paid) paidMemberIds.add(data.memberId);
         });
 
-        // OBは会費の対象外なので除外する
+        // 会費の対象は在学生だけ(OB・教員は対象外)
         const unpaidDues = members.filter(
-          (m) => !m.isOB && !paidMemberIds.has(m.id)
+          (m) => memberCategory(m) === "在学生" && !paidMemberIds.has(m.id)
         ).length;
+
+        const pendingMemberApprovals = (await fetchPendingMembers()).length;
 
         setSummary({
           activeMembers,
           pendingRoleApprovals,
           pendingBandApprovals,
+          pendingMemberApprovals,
           unpaidDues,
         });
       } catch (e) {

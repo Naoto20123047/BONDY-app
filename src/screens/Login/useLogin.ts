@@ -5,28 +5,31 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { sendVerificationMail } from "../../lib/emailVerification";
+import { isUniversityEmail } from "../../lib/memberCategory";
 import { auth } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 
 export function useLogin() {
   const { expelledBlocked, clearExpelledBlocked } = useAuth();
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
+  // 新規登録の区分(v1.4.0)。在学生は大学のアドレスのみ、教員・OBはどのアドレスでも可
+  const [signupType, setSignupType] = useState<"student" | "guest">("student");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const validateDomain = (mail: string) => mail.endsWith("@kaishi-pu.ac.jp");
-
+  /**
+   * v1.4.0: ログインとパスワード再設定はどのアドレスでもできる
+   * (卒業後に外部のアドレスへ切り替えた人と、教員・OBのため)。
+   * 大学のアドレスに限るのは「在学生の新規登録」だけ。
+   * 守りの本体は Firestore のルール(在学生としての登録は、確認済みの大学アドレスのみ)。
+   */
   const validate = () => {
     if (mode === "reset") {
       if (!email) {
         setError("メールアドレスを入力してください。");
-        return false;
-      }
-      if (!validateDomain(email)) {
-        setError("大学のメールアドレス(@kaishi-pu.ac.jp)を入力してください。");
         return false;
       }
       return true;
@@ -35,8 +38,10 @@ export function useLogin() {
       setError("メールアドレスとパスワードを入力してください。");
       return false;
     }
-    if (!validateDomain(email)) {
-      setError("大学のメールアドレス(@kaishi-pu.ac.jp)で登録してください。");
+    if (mode === "signup" && signupType === "student" && !isUniversityEmail(email.trim())) {
+      setError(
+        "在学生は大学のメールアドレス(@kaishi-pu.ac.jp)で登録してください。教員・OBの方は「教員・OB」を選んでください。"
+      );
       return false;
     }
     if (mode === "signup" && password.length < 6) {
@@ -117,5 +122,7 @@ export function useLogin() {
     handleSubmit,
     changeMode,
     expelledBlocked,
+    signupType,
+    setSignupType,
   } as const;
 }
