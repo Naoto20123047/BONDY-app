@@ -122,7 +122,7 @@ export function useFormResults(id: string | undefined) {
               nickname: m?.nickname ?? "",
               studentId: m?.studentId ?? "—",
               faculty: m?.faculty ?? "—",
-              gradeLabel: m ? calcGrade(m.enrollmentYear, m.isOB) : "—",
+              gradeLabel: m ? calcGrade(m.enrollmentYear, m.isOB, m.category) : "—",
               parts: formatParts(m?.parts),
               bandNames,
               bandMembers,

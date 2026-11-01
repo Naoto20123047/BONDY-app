@@ -12,6 +12,14 @@ export default function AdminScreen() {
 
   const menus = [
     {
+      key: "members",
+      icon: "ti-user-check",
+      title: "新規登録の承認",
+      desc: "教員・OBの新規登録を確認して承認",
+      badge: summary.pendingMemberApprovals,
+      path: "/admin/approvals/members",
+    },
+    {
       key: "roles",
       icon: "ti-user-cog",
       title: "ロール承認",

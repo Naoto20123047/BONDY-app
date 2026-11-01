@@ -44,9 +44,20 @@ service cloud.firestore {
       return get(myMemberPath()).data;
     }
 
-    // 在籍中のメンバー。アプリの通常操作はすべてこれが前提
+    // 在籍中のメンバー。アプリの通常操作はすべてこれが前提。
+    // v1.4.0: 幹部の確認待ち(教員・OBで approved が false)の人は含めない。
+    // approved を持たない人(既存のメンバー・在学生)は確認済みとして扱う
     function isActive() {
-      return hasMemberDoc() && memberData().status == 'active';
+      return hasMemberDoc()
+             && memberData().status == 'active'
+             && memberData().get('approved', true) != false;
+    }
+
+    // 幹部の確認待ち(v1.4.0)。確認待ちのホーム・サークル紹介・自分宛ての通知だけが使える
+    function isPendingMember() {
+      return hasMemberDoc()
+             && memberData().status == 'active'
+             && memberData().get('approved', true) == false;
     }
 
     // 幹部かどうか。
@@ -56,11 +67,14 @@ service cloud.firestore {
       return isActive() && memberData().role == '幹部';
     }
 
-    // メール確認済みの大学アドレス。
-    // 在学生の新規登録と、まだメンバーでない見学者の紹介画面にだけ使う。
+    // メールアドレスの確認が済んでいるか
+    function isVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // メール確認済みの大学アドレス。在学生の新規登録にだけ使う
     function isVerifiedUniversityEmail() {
-      return isSignedIn()
-             && request.auth.token.email_verified == true
+      return isVerifiedEmail()
              && request.auth.token.email is string
              && request.auth.token.email.lower().matches('.*@kaishi-pu[.]ac[.]jp$');
     }
@@ -192,26 +206,39 @@ service cloud.firestore {
       // まだ status を知らない状態で読むため。ここを閉じると起動できない)
       allow get: if isSignedIn() && (request.auth.uid == memberId || isActive());
 
-      // 一覧は在籍者のみ。退会者は名簿を引けない
-      allow list: if isActive();
+      // 一覧は在籍者のみ。退会者は名簿を引けない。
+      // 確認待ちの人は、登録したことを幹部に知らせるために「幹部だけ」を引ける(v1.4.0)
+      allow list: if isActive()
+                  || (isPendingMember() && resource.data.role == '幹部'
+                      && resource.data.status == 'active');
 
       // 新規登録(プロフィール登録画面)。
-      // v1.3.2: メール確認済みの大学アドレスに限る。以前は画面でしか
-      // 確かめておらず、実在しない大学アドレスでも部員になれた。
-      allow create: if isVerifiedUniversityEmail()
+      //  - 在学生: メール確認済みの大学アドレスに限る(v1.3.2)。登録してすぐ使える
+      //  - 教員・OB: どのアドレスでもよいが、メール確認は必須。幹部の確認待ちで作る(v1.4.0)
+      allow create: if isVerifiedEmail()
                     && request.auth.uid == memberId
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.email == request.auth.token.email
                     && request.resource.data.status == 'active'
                     && request.resource.data.role == '一般メンバー'
                     && request.resource.data.positions.size() == 0
-                    && request.resource.data.isOB == false
                     && request.resource.data.duesPaid == false
                     && isValidAvatarThumb()
                     // 完全削除された人が登録し直す場合もここを通る。
                     // 過去の日付を入れて NEWバッジを避けることはできるが、
                     // 実害が無いため検証はしない
-                    && request.resource.data.joinedAt is string;
+                    && request.resource.data.joinedAt is string
+                    && (
+                         // 在学生
+                         (isVerifiedUniversityEmail()
+                          && request.resource.data.get('category', '在学生') == '在学生'
+                          && request.resource.data.isOB == false
+                          && !('approved' in request.resource.data))
+                         // 教員・OB(幹部の確認待ち)
+                         || (request.resource.data.category in ['教員', 'OB']
+                             && request.resource.data.approved == false
+                             && request.resource.data.isOB == (request.resource.data.category == 'OB'))
+                       );
 
       allow update: if
         // 幹部: 退会処理・除籍・復帰・OB登録など。
@@ -230,6 +257,11 @@ service cloud.firestore {
         || (isActive() && request.auth.uid == memberId
             && changedOnly(['parts', 'nickname', 'avatarColor', 'avatarImageId', 'avatarThumb'])
             && isValidAvatarThumb())
+        // 本人: ログイン用メールアドレスを変更したときの名簿の追従(v1.4.0)。
+        // Auth 側で確認済みのアドレスにしか合わせられない
+        || (hasMemberDoc() && request.auth.uid == memberId
+            && changedOnly(['email'])
+            && request.resource.data.email == request.auth.token.email)
         // 本人: 退会(ソフト削除)。除籍は幹部しかできない
         || (isActive() && request.auth.uid == memberId
             && changedOnly(['status', 'withdrawnAt'])
@@ -252,11 +284,12 @@ service cloud.firestore {
     // pages(アプリ内の編集可能なページ。今は紹介画面 pages/intro のみ)
     //
     // まだメンバーになっていない見学者にも見せるページ。
-    // v1.3.2: 「ログインしていれば誰でも」をやめ、在籍者か、
-    // メール確認済みの大学アドレスに限った(Worker の /images/sign も同じ条件)
+    // v1.3.2: 「ログインしていれば誰でも」をやめ、メール確認済みに限った。
+    // v1.4.0: 教員・OBは大学以外のアドレスで登録するため、アドレスの種類は問わない
+    // (Worker の /images/sign も同じ条件)
     // ---------------------------------------------------------------------
     match /pages/{pageId} {
-      allow read: if isActive() || isVerifiedUniversityEmail();
+      allow read: if isActive() || isVerifiedEmail();
       allow write: if isOfficer();
     }
 
@@ -423,23 +456,30 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read: if isActive() && resource.data.targetMemberId == request.auth.uid;
+      // 確認待ちの人も、自分宛ての通知(承認されました など)は読める
+      allow read: if (isActive() || isPendingMember())
+                  && resource.data.targetMemberId == request.auth.uid;
 
-      allow create: if isActive() && notificationShapeOk() && (
-        request.resource.data.type in [
+      allow create: if notificationShapeOk() && (
+        (isActive() && request.resource.data.type in [
           'approval_needed', 'equipment_request', 'band_member_changed', 'post_comment'
-        ]
+        ])
         || (isOfficer() && request.resource.data.type in [
           'form_published', 'approval_result', 'todo_assigned',
-          'equipment_result', 'equipment_overdue'
+          'equipment_result', 'equipment_overdue', 'live_update'
         ])
+        // 確認待ちの人: 登録したことを幹部に知らせる(v1.4.0)
+        || (isPendingMember()
+            && request.resource.data.type == 'approval_needed'
+            && exists(docPath('members', request.resource.data.targetMemberId))
+            && get(docPath('members', request.resource.data.targetMemberId)).data.role == '幹部')
       );
 
-      allow update: if isActive()
+      allow update: if (isActive() || isPendingMember())
                     && resource.data.targetMemberId == request.auth.uid
                     && changedOnly(['read']);
 
-      allow delete: if isActive()
+      allow delete: if (isActive() || isPendingMember())
                     && resource.data.targetMemberId == request.auth.uid;
     }
 
@@ -636,6 +676,83 @@ service cloud.firestore {
                     && request.resource.data.get('stamp', '') == '';
 
       allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // lives(ライブ準備。v1.4.0)
+    //
+    //   lives/{liveId}                     ライブ本体。作成・編集・出演順は幹部だけ
+    //   lives/{liveId}/entries/{bandId}    出演の申し込み。そのバンドのメンバーが、申し込みの締切まで
+    //   lives/{liveId}/setlists/{bandId}   セットリスト。出演が決まったバンドのメンバーが、提出の締切まで
+    //   lives/{liveId}/stagePlans/{bandId} 編成・機材。同上
+    //
+    // 締切は applyClosesAt / submitClosesAt(締切日の 23:59:59、ミリ秒)で判定する。
+    // 締切後の差し替えは幹部ならできる(当日の資料を整えるため)。
+    // 「データは削除しない」方針に従い、delete は閉じている。
+    // ---------------------------------------------------------------------
+    function liveData(liveId) {
+      return get(docPath('lives', liveId)).data;
+    }
+
+    function liveLineupShapeOk() {
+      let d = request.resource.data;
+      return d.lineup is list && d.lineupBandIds is list
+             && d.lineup.size() == d.lineupBandIds.size()
+             && d.applyClosesAt is number && d.submitClosesAt is number
+             && d.changeoverMinutes is number;
+    }
+
+    // 出演が決まり(出演順が公開され)、提出の締切前のバンドのメンバー
+    function canSubmitForLive(liveId, bandId) {
+      let live = liveData(liveId);
+      return isActive()
+             && isBandMember(bandId)
+             && bandId in live.lineupBandIds
+             && live.get('lineupPublishedAt', null) != null
+             && request.time.toMillis() <= live.submitClosesAt;
+    }
+
+    match /lives/{liveId} {
+      allow read: if isActive();
+      allow create: if isOfficer()
+                    && liveLineupShapeOk()
+                    && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isOfficer() && liveLineupShapeOk();
+      allow delete: if false;
+
+      match /entries/{bandId} {
+        allow read: if isActive();
+        allow create, update: if isOfficer()
+          || (isActive()
+              && isBandMember(bandId)
+              && request.resource.data.bandId == bandId
+              && request.resource.data.updatedBy == request.auth.uid
+              && request.resource.data.participate is bool
+              && request.time.toMillis() <= liveData(liveId).applyClosesAt);
+        allow delete: if false;
+      }
+
+      match /setlists/{bandId} {
+        allow read: if isActive();
+        allow create, update: if isOfficer()
+          || (canSubmitForLive(liveId, bandId)
+              && request.resource.data.bandId == bandId
+              && request.resource.data.updatedBy == request.auth.uid
+              && request.resource.data.items is list
+              && request.resource.data.items.size() <= 40);
+        allow delete: if false;
+      }
+
+      match /stagePlans/{bandId} {
+        allow read: if isActive();
+        allow create, update: if isOfficer()
+          || (canSubmitForLive(liveId, bandId)
+              && request.resource.data.bandId == bandId
+              && request.resource.data.updatedBy == request.auth.uid
+              && request.resource.data.members is list
+              && request.resource.data.members.size() <= 20);
+        allow delete: if false;
+      }
     }
 
     // ---------------------------------------------------------------------

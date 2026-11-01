@@ -38,12 +38,49 @@ export async function fetchAllMembers(): Promise<Member[]> {
   return snapshot.docs.map((d) => toMember(d.id, d.data()));
 }
 
-/** 在籍中(status が active)のメンバーを全件取得する */
+/**
+ * 在籍中(status が active)のメンバーを全件取得する。
+ *
+ * v1.4.0: 幹部の確認待ち(教員・OBで approved が false)の人は含めない。
+ * 名簿・会費・バンドの候補・通知の宛先に、まだ確認していない人が混ざらないようにするため。
+ * 確認待ちの人は fetchPendingMembers() で取る。
+ */
 export async function fetchActiveMembers(): Promise<Member[]> {
   const snapshot = await getDocs(
     query(collection(db, "members"), where("status", "==", "active"))
   );
+  return snapshot.docs
+    .map((d) => toMember(d.id, d.data()))
+    .filter((m) => m.approved !== false);
+}
+
+/** 幹部の確認待ちのメンバー(教員・OB)。幹部管理の「新規登録の承認」で使う(v1.4.0) */
+export async function fetchPendingMembers(): Promise<Member[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, "members"),
+      where("status", "==", "active"),
+      where("approved", "==", false)
+    )
+  );
   return snapshot.docs.map((d) => toMember(d.id, d.data()));
+}
+
+/**
+ * 幹部のID(確認待ちの人が使う版。v1.4.0)。
+ *
+ * 確認待ちの人は名簿を読めないが、登録したことを幹部に知らせる必要がある。
+ * ルールで「幹部だけを絞り込むクエリ」に限って許しているので、その形で読む。
+ */
+export async function fetchOfficerIdsAsPending(): Promise<string[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, "members"),
+      where("status", "==", "active"),
+      where("role", "==", "幹部")
+    )
+  );
+  return snapshot.docs.map((d) => d.id);
 }
 
 /** 退会・除籍したメンバー。幹部管理のユーザー履歴で使う */

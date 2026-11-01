@@ -1,0 +1,37 @@
+/* 新規登録の承認。カードやボタンはバンド承認(bandApprovalsScreen.css)のものを使い回している */
+
+.member-approvals-lead {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.member-approval-card {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.member-approval-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.member-approval-meta {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+.member-approval-meta .ti-check {
+  color: var(--color-accent);
+}
+
+.member-approvals-note {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}

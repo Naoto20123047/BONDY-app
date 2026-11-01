@@ -27,7 +27,7 @@ export function useUserHistory() {
           id: m.id,
           name: m.name,
           faculty: m.faculty,
-          gradeLabel: calcGrade(m.enrollmentYear, m.isOB),
+          gradeLabel: calcGrade(m.enrollmentYear, m.isOB, m.category),
           studentId: m.studentId,
           status: m.status,
           leftAt: (m.status === "expelled" ? m.expelledAt : m.withdrawnAt) ?? "",

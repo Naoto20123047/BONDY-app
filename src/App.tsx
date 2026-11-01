@@ -39,6 +39,19 @@ import ChatScreen from "./screens/Chat/chatScreen";
 import BoardScreen from "./screens/Board/boardScreen";
 import CreatePostScreen from "./screens/Board/createPostScreen";
 import PostDetailScreen from "./screens/Board/postDetailScreen";
+import PendingHomeScreen from "./screens/Home/pendingHomeScreen";
+import MemberApprovalsScreen from "./screens/AdminDashboard/memberApprovalsScreen";
+import LiveListScreen from "./screens/Live/liveListScreen";
+import LiveEditScreen from "./screens/Live/liveEditScreen";
+import LiveDetailScreen from "./screens/Live/liveDetailScreen";
+import LiveApplyScreen from "./screens/Live/liveApplyScreen";
+import LiveLineupScreen from "./screens/Live/liveLineupScreen";
+import SetlistScreen from "./screens/Live/setlistScreen";
+import StagePlanScreen from "./screens/Live/stagePlanScreen";
+import LiveSubmitDoneScreen from "./screens/Live/liveSubmitDoneScreen";
+import LiveStatusScreen from "./screens/Live/liveStatusScreen";
+import LiveDocumentsScreen from "./screens/Live/liveDocumentsScreen";
+import { isPendingApproval } from "./lib/memberCategory";
 
 
 // 認証状態に応じて表示を切り替える中身
@@ -94,7 +107,19 @@ function AppContent() {
       </Routes>
     );
   }
- // ログイン済み+プロフィール登録済み → 通常のアプリ
+  // 教員・OBで、幹部の確認待ち(v1.4.0)。
+  // 確認が済むまでは確認待ちのホームとサークル紹介だけを出す
+  // (名簿・チャットなどはルール側でも読めない)
+  if (isPendingApproval(member)) {
+    return (
+      <Routes>
+        <Route path="/intro" element={<IntroViewScreen />} />
+        <Route path="*" element={<PendingHomeScreen />} />
+      </Routes>
+    );
+  }
+
+  // ログイン済み+プロフィール登録済み → 通常のアプリ
   const isOfficer = hasOfficerRole(member);
 
 return (
@@ -129,6 +154,19 @@ function AppRoutes({ isOfficer }: { isOfficer: boolean }) {
         <Route path="/archive/new" element={<ArchiveEditScreen />} />
         <Route path="/archive/:id" element={<ArchiveEventDetailScreen />} />
         <Route path="/archive/:id/edit" element={<ArchiveEditScreen />} />
+        {/* ライブ準備(v1.4.0)。作成・編集・順番・提出状況は幹部のみ
+            (画面でも確かめているが、権限そのものは Firestore ルールで担保している) */}
+        <Route path="/live" element={<LiveListScreen />} />
+        <Route path="/live/new" element={<LiveEditScreen />} />
+        <Route path="/live/:id" element={<LiveDetailScreen />} />
+        <Route path="/live/:id/edit" element={<LiveEditScreen />} />
+        <Route path="/live/:id/apply" element={<LiveApplyScreen />} />
+        <Route path="/live/:id/lineup" element={<LiveLineupScreen />} />
+        <Route path="/live/:id/setlist/:bandId" element={<SetlistScreen />} />
+        <Route path="/live/:id/stage/:bandId" element={<StagePlanScreen />} />
+        <Route path="/live/:id/done/:bandId" element={<LiveSubmitDoneScreen />} />
+        <Route path="/live/:id/status" element={<LiveStatusScreen />} />
+        <Route path="/live/:id/documents" element={<LiveDocumentsScreen />} />
         <Route path="/chat" element={<ChatScreen />} />
         <Route path="/board" element={<BoardScreen />} />
         <Route path="/board/new" element={<CreatePostScreen />} />
@@ -136,6 +174,7 @@ function AppRoutes({ isOfficer }: { isOfficer: boolean }) {
         <Route path="/admin" element={<AdminScreen />} />
         <Route path="/admin/approvals/roles" element={<RoleApprovalsScreen />} />
         <Route path="/admin/approvals/bands" element={<BandApprovalsScreen />} />
+        <Route path="/admin/approvals/members" element={<MemberApprovalsScreen />} />
         <Route path="/admin/dues" element={<DuesScreen />} />
         <Route path="/admin/history" element={<UserHistoryScreen />} />
         <Route path="/admin/intro" element={<IntroEditScreen />} />

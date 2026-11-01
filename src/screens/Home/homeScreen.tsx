@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./homeScreen.css";
 import { useHome } from "./useHome";
 import { useNotifications } from "../../lib/useNotifications";
-import { calcGrade } from "../../lib/grade";
+import { memberSubtitle } from "../../lib/grade";
 
 // ホームのあいさつ文言(開くたびにランダムで1つ表示)
 const GREETINGS = [
@@ -52,7 +52,7 @@ export default function HomeScreen() {
     <div className="home-content">
       <p className="home-greeting">{member.name}さん、{greeting}</p>
       <p className="home-subtitle">
-        {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}
+        {memberSubtitle(member)}
         {member.positions.length > 0 ? ` ・ ${member.positions.join(" ")}` : ""}
       </p>
 

@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "./myPageScreen.css";
 import { useMyPage } from "./useMyPage";
-import { calcGrade } from "../../lib/grade";
+import { memberSubtitle } from "../../lib/grade";
 import { formatParts } from "../../lib/parts";
 import { formTypeLabel } from "../../lib/formLabel";
 import MemberAvatar from "../Layout/MemberAvatar";
@@ -40,7 +40,7 @@ export default function MyPageScreen() {
                 )}
               </p>
               <p className="mypage-sub">
-                {member.faculty}・{calcGrade(member.enrollmentYear, member.isOB)}・
+                {memberSubtitle(member)}・
                 {formatParts(member.parts)}
               </p>
             </div>

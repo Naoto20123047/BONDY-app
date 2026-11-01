@@ -34,7 +34,7 @@ export function useRoster() {
       if (!matchName && !matchNickname && !matchStudentId) return false;
     }
     if (gradeFilter) {
-      if (calcGrade(m.enrollmentYear, m.isOB) !== gradeFilter) return false;
+      if (calcGrade(m.enrollmentYear, m.isOB, m.category) !== gradeFilter) return false;
     }
     // パートは複数持てるので「含むか」で判定する
     if (partFilter && !(m.parts ?? []).includes(partFilter)) return false;
@@ -46,7 +46,7 @@ export function useRoster() {
   const parts = PART_OPTIONS.filter((p) => usedParts.has(p));
 
   const grades = Array.from(
-    new Set(members.map((m) => calcGrade(m.enrollmentYear, m.isOB)))
+    new Set(members.map((m) => calcGrade(m.enrollmentYear, m.isOB, m.category)))
   );
 
   return {

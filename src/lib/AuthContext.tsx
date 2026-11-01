@@ -96,10 +96,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      // ログイン用メールアドレスを変更した人(v1.4.0)。名簿に出すアドレスを合わせる。
+      // 失敗してもログインは止めない(次にログインしたときにやり直される)
+      const authEmail = auth.currentUser?.email ?? "";
+      if (authEmail && data.email !== authEmail) {
+        try {
+          await updateDoc(doc(db, "members", uid), { email: authEmail });
+          data.email = authEmail;
+        } catch (e) {
+          console.error("メールアドレスの同期に失敗しました", e);
+        }
+      }
+
       setMember(data);
       setWithdrawnMember(null);
       setExpelledBlocked(false);
-      return true;
+      // 幹部の確認待ち(教員・OB)は、名簿を読めないので氏名マップを読みに行かない
+      return data.approved !== false;
     } catch (e) {
       console.error("メンバー情報の取得に失敗しました", e);
       setMember(null);
