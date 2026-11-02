@@ -4,7 +4,7 @@ import { db } from "../../lib/firebase";
 import { fetchActiveMembers, fetchPendingMembers } from "../../lib/members";
 import { memberCategory } from "../../lib/memberCategory";
 import { currentFiscalYear } from "../../lib/grade";
-import { runV132Migrations } from "../../lib/migrations";
+import { runMigrations } from "../../lib/migrations";
 
 interface AdminSummary {
   activeMembers: number;
@@ -27,8 +27,8 @@ export function useAdmin() {
 
   useEffect(() => {
     const fetchSummary = async () => {
-      // 既存データの移行(v1.3.2)。移行済みなら読むだけで何も書かない
-      await runV132Migrations();
+      // 既存データの移行。済んでいれば印を1件読むだけで終わる(v1.4.1)
+      await runMigrations();
       try {
         // 在籍中メンバー
         const members = await fetchActiveMembers();
@@ -84,4 +84,4 @@ export function useAdmin() {
   }, []);
 
   return { summary, loading } as const;
-}
+}

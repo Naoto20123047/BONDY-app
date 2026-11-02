@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchMemberNameMap } from "../../lib/members";
+import { fetchMemberNameMap, FORMER_MEMBER_LABEL } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { getEquipmentManagerIds } from "../../lib/equipmentManager";
 import type { Equipment, EquipmentRequest } from "../../Types/types";
@@ -51,7 +51,7 @@ export function useEquipment() {
             lentCount,
             available: eq.totalQuantity - lentCount,
             borrowers: active.map((r) => ({
-              memberName: nameMap[r.memberId] ?? "不明",
+              memberName: nameMap[r.memberId] ?? FORMER_MEMBER_LABEL,
               quantity: r.quantity,
               dueDate: r.dueDate,
               overdue: new Date(r.dueDate) < now,
@@ -74,4 +74,4 @@ export function useEquipment() {
   }, [member]);
 
   return { items, loading, iAmManager } as const;
-}
+}

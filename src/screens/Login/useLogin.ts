@@ -9,6 +9,10 @@ import { isUniversityEmail } from "../../lib/memberCategory";
 import { auth } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 
+
+/** 新規登録のパスワードの最低文字数(v1.4.1) */
+const MIN_PASSWORD_LENGTH = 8;
+
 export function useLogin() {
   const { expelledBlocked, clearExpelledBlocked } = useAuth();
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
@@ -44,8 +48,10 @@ export function useLogin() {
       );
       return false;
     }
-    if (mode === "signup" && password.length < 6) {
-      setError("パスワードは6文字以上で設定してください。");
+    // v1.4.1: 6文字から8文字に引き上げた(Firebase の最低は6文字)。
+    // 既存のアカウントのログインには影響しない
+    if (mode === "signup" && password.length < MIN_PASSWORD_LENGTH) {
+      setError(`パスワードは${MIN_PASSWORD_LENGTH}文字以上で設定してください。`);
       return false;
     }
     return true;
@@ -69,7 +75,7 @@ export function useLogin() {
         await sendVerificationMail(credential.user);
       } else if (mode === "reset") {
         await sendPasswordResetEmail(auth, email);
-        setInfo("パスワード再設定用のメールを送信しました。メールをご確認ください。");
+        setInfo("入力したアドレスが登録されていれば、パスワード再設定用のメールを送信しました。");
       }
     } catch (e) {
       const code = (e as { code?: string }).code ?? "";
@@ -84,16 +90,21 @@ export function useLogin() {
           setError("ログインに失敗しました。時間をおいて再度お試しください。");
         }
       } else if (mode === "signup") {
+        // v1.4.1: 「このアドレスは登録済み」とは出さない。
+        // あるアドレスが BONDY にアカウントを持っているかを、外から調べられてしまうため
         if (code === "auth/email-already-in-use") {
-          setError("このメールアドレスはすでに登録されています。");
-        } else if (code === "auth/weak-password") {
-          setError("パスワードは6文字以上で設定してください。");
+          setError(
+            "登録できませんでした。すでにアカウントをお持ちの場合は、ログインかパスワードの再設定をお試しください。"
+          );
+        } else if (code === "auth/weak-password" || code === "auth/password-does-not-meet-requirements") {
+          setError(`パスワードは${MIN_PASSWORD_LENGTH}文字以上で、推測されにくいものを設定してください。`);
         } else {
           setError("登録に失敗しました。時間をおいて再度お試しください。");
         }
       } else {
+        // v1.4.1: 登録の有無が分からないよう、見つからない場合も送信済みと同じ表示にする
         if (code === "auth/user-not-found") {
-          setError("このメールアドレスは登録されていません。");
+          setInfo("入力したアドレスが登録されていれば、パスワード再設定用のメールを送信しました。");
         } else {
           setError("メールの送信に失敗しました。時間をおいて再度お試しください。");
         }

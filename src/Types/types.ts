@@ -105,6 +105,14 @@ export interface Member {
    * 「承認済みで、内容どおりか」を確かめる。画面では使わない。
    */
   appliedRequestId?: string;
+  /**
+   * 幹部に昇格した時刻(v1.4.1)。サーバーの時刻で書く。
+   * 昇格から14日間は役職変更の申請・承認・却下に加われない(lib/roles.ts)。
+   * v1.4.1 より前からの幹部は持たない(制限なし)。
+   */
+  promotedAt?: { toMillis(): number };
+  /** 昇格させた幹部(v1.4.1) */
+  promotedBy?: string;
 }
 
 // ===== 役職変更の申請(幹部が複数人で承認する) =====
@@ -126,8 +134,15 @@ export interface RoleChangeRequest {
   proposedBy: string;
   approvals: string[];
   requiredApprovals: number;
-  status: "pending" | "approved" | "rejected";
+  /**
+   * pending  : 承認を集めている
+   * applied  : 承認がそろい、反映済み(v1.4.1。最後の承認と反映は同時に行う)
+   * approved : v1.4.0 までの「承認済み」。反映には使えない(使い回しを防ぐため)
+   * rejected : 却下
+   */
+  status: "pending" | "applied" | "approved" | "rejected";
   position?: Position; // assign_position のとき、付与する役職
+  rejectedBy?: string;
 }
 
 // ===== バンド =====
@@ -180,6 +195,11 @@ export interface FormDef {
   type: FormType;
   questions: FormQuestion[];
   deadline: string;
+  /**
+   * 締切日の終わり(日本時間 23:59:59)のミリ秒(v1.4.1)。
+   * ルールで「締切を過ぎたら回答できない」を判定する。古いフォームは持たない
+   */
+  closesAt?: number;
 }
 
 export interface FormResponse {
@@ -189,6 +209,12 @@ export interface FormResponse {
   /** 質問ID → 回答 */
   answers: Record<string, string>;
   bandId?: string;
+  /**
+   * フォームの種類の写し(v1.4.1)。
+   * 個別アンケートの回答は本人と幹部しか読めないため、ルールが回答だけを見て
+   * 判定できるように持たせている
+   */
+  formType?: FormType;
   submittedAt: string;
   /**
    * バンド回答を最後に編集した人(v1.3.2)。
@@ -278,7 +304,12 @@ export interface Post {
   body: string;
   createdAt: string;
   resolved: boolean;
-  resolvedAt?: string;   // 解決フラグを立てた日時(自動削除の起点)
+  resolvedAt?: string;   // 解決フラグを立てた日時(表示用)
+  /**
+   * 解決にした時刻(v1.4.1。サーバーの時刻)。自動削除の起点。
+   * ルールは「これから7日経った投稿」しか投稿者以外に消させない
+   */
+  resolvedTs?: { toMillis(): number } | null;
   isAnonymous?: boolean; // 匿名掲示板として作成されたか(投稿・コメントとも表示上匿名になる)
 }
 
@@ -475,7 +506,8 @@ export type NotificationType =
   | "equipment_overdue"    // 機材延滞
   | "band_member_changed"  // バンドメンバーの追加・脱退
   | "post_comment"         // 掲示板の投稿にコメントが付いた
-  | "live_update";         // ライブの出演募集・出演決定・提出のお願い(v1.4.0)
+  | "live_update"          // ライブの出演募集・出演決定・提出のお願い(v1.4.0)
+  | "officer_promoted";    // 幹部への昇格(幹部全員へ。v1.4.1)
 
 export interface AppNotification {
   id: string;
@@ -486,6 +518,8 @@ export interface AppNotification {
   link: string;
   read: boolean;
   createdAt: string;
+  /** 差出人(v1.4.1)。それより前の通知は持たない */
+  createdBy?: string;
 }
 
 // ===== アーカイブ(活動の記録) =====

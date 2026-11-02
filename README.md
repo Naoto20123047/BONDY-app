@@ -46,6 +46,24 @@ firebase deploy --only hosting
 firebase deploy --only firestore:rules
 ```
 
+#### v1.4.1 をデプロイするとき(セキュリティ修正)
+
+ルール・インデックス・Worker・アプリの順に入れる。ルールは v1.4.1 のアプリが書く形
+(作成日時・役職変更の反映・通知の差出人など)を前提にしているので、**ルールとアプリは同じ日に入れる。**
+
+1. `npm test` を流して、ルールのテスト(`tests/rules/`)がすべて通ることを確かめる
+2. Firebase コンソールのルール画面で、本番のルールが v1.4.0 の `firestore.rules` と同じかを確かめる
+3. `firebase deploy --only firestore:indexes`(通知の一覧に使う複合インデックス)。
+   コンソールで作ったインデックスが `firestore.indexes.json` に無いと「消すか」と聞かれるので、**No** と答える
+4. `cd worker && npx wrangler deploy`(Worker を先に。アカウントの無効化の確認が増えている)
+5. `firebase deploy --only firestore:rules`
+6. `npm run build && firebase deploy --only hosting`
+7. 幹部のアカウントで管理画面を一度開く(古いフォームと回答に締切・種類を書き足す移行が走る)
+8. 実機で「名簿・掲示板・チャット・フォーム・バンド・ライブ・役職変更・教員/OBの登録と承認」を一通り触る
+
+端末の時計が15分以上ずれていると、投稿・コメント・チャットを送れない(ルールが送信時刻を確かめるため)。
+送れないと言われたら、端末の日付と時刻の設定を確認してもらう。
+
 ---
 
 ## ディレクトリ構成

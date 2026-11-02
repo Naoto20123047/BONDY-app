@@ -1,7 +1,10 @@
 import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteField, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import { setFormerMembersVisible } from "./members";
+import { hasOfficerRole } from "./roles";
+import { asText, asTextList } from "./sanitize";
 import type { Member } from "../Types/types";
 
 // 氏名解決に使う軽量なメンバー情報
@@ -31,6 +34,8 @@ interface AuthContextValue {
    */
   reloadUser: () => Promise<boolean>;
 }
+
+const NOT_ACTIVE = { active: false, officer: false } as const;
 
 const AuthContext = createContext<AuthContextValue>({
   firebaseUser: null,
@@ -62,19 +67,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // uidからmembersドキュメントを取得する。
   // 在籍中のメンバーとして読み込めた場合だけ true を返す。
-  const loadMember = async (uid: string): Promise<boolean> => {
+  const loadMember = async (uid: string): Promise<{ active: boolean; officer: boolean }> => {
     try {
       const ref = doc(db, "members", uid);
       const snapshot = await getDoc(ref);
+      setFormerMembersVisible(false);
       if (!snapshot.exists()) {
         // 認証はしたがプロフィール未登録。完全削除された人もここに来るため、
         // 新規メンバーとしてプロフィール登録からやり直すことになる
         setMember(null);
         setWithdrawnMember(null);
-        return false;
+        return NOT_ACTIVE;
       }
 
-      const data = { id: snapshot.id, ...(snapshot.data() as Omit<Member, "id">) };
+      const raw = snapshot.data() as Omit<Member, "id">;
+      const data: Member = {
+        ...raw,
+        id: snapshot.id,
+        name: asText(raw.name),
+        parts: asTextList(raw.parts),
+        positions: asTextList(raw.positions) as Member["positions"],
+      };
 
       // 除籍: アプリに入れない。
       // 退会操作時に Worker 経由で Auth アカウントを無効化しているが、発行済みの
@@ -85,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setWithdrawnMember(null);
         setExpelledBlocked(true);
         await signOut(auth);
-        return false;
+        return NOT_ACTIVE;
       }
 
       // 退会: 本人の意思なので締め出さず、復帰するか尋ねる。
@@ -93,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.status === "withdrawn") {
         setMember(null);
         setWithdrawnMember(data);
-        return false;
+        return NOT_ACTIVE;
       }
 
       // ログイン用メールアドレスを変更した人(v1.4.0)。名簿に出すアドレスを合わせる。
@@ -111,20 +124,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMember(data);
       setWithdrawnMember(null);
       setExpelledBlocked(false);
+      // 退会・除籍した人の記録を読めるのは幹部だけ(v1.4.1)。
+      // lib/members.ts の読み方をここで切り替える
+      setFormerMembersVisible(hasOfficerRole(data) && data.approved !== false);
       // 幹部の確認待ち(教員・OB)は、名簿を読めないので氏名マップを読みに行かない
-      return data.approved !== false;
+      const active = data.approved !== false;
+      return { active, officer: active && hasOfficerRole(data) };
     } catch (e) {
       console.error("メンバー情報の取得に失敗しました", e);
       setMember(null);
       setWithdrawnMember(null);
-      return false;
+      return NOT_ACTIVE;
     }
   };
 
-  // 全メンバーの氏名マップを取得してキャッシュする
-  const loadMemberMap = async () => {
+  // 全メンバーの氏名マップを取得してキャッシュする。
+  // v1.4.1: 一般メンバーは在籍中の人だけ読める(退会・除籍した人は幹部だけ)。
+  // 一般メンバーの画面では、退会した人の名前は lib/members.ts の FORMER_MEMBER_LABEL で出す
+  const loadMemberMap = async (officer: boolean) => {
     try {
-      const snap = await getDocs(collection(db, "members"));
+      const snap = await getDocs(
+        officer
+          ? collection(db, "members")
+          : query(collection(db, "members"), where("status", "==", "active"))
+      );
       const map: Record<string, MemberBrief> = {};
       snap.docs.forEach((d) => {
         const data = d.data() as {
@@ -133,11 +156,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatarColor?: string;
           avatarThumb?: string;
         };
+        // 型が想定と違う値で画面が止まらないよう、文字列にそろえる(v1.4.1)
         map[d.id] = {
-          name: data.name,
-          nickname: data.nickname,
-          avatarColor: data.avatarColor,
-          avatarThumb: data.avatarThumb,
+          name: asText(data.name),
+          nickname: data.nickname === undefined ? undefined : asText(data.nickname),
+          avatarColor: data.avatarColor === undefined ? undefined : asText(data.avatarColor),
+          avatarThumb: typeof data.avatarThumb === "string" ? data.avatarThumb : undefined,
         };
       });
       setMemberMap(map);
@@ -152,10 +176,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setFirebaseUser(user);
       setEmailVerified(user?.emailVerified ?? false);
       if (user) {
-        const active = await loadMember(user.uid);
+        const result = await loadMember(user.uid);
         // 在籍中でなければ氏名マップを読みに行かない(ルール上も読めない)
-        if (active) {
-          await loadMemberMap(); // ログイン時に氏名マップも一度だけ取得
+        if (result.active) {
+          await loadMemberMap(result.officer); // ログイン時に氏名マップも一度だけ取得
         }
       } else {
         setMember(null);
@@ -176,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshMemberMap = async () => {
-    await loadMemberMap();
+    await loadMemberMap(hasOfficerRole(member) && member?.approved !== false);
   };
 
   /**
@@ -190,8 +214,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status: "active",
       withdrawnAt: deleteField(),
     });
-    await loadMember(withdrawnMember.id);
-    await loadMemberMap();
+    const result = await loadMember(withdrawnMember.id);
+    if (result.active) await loadMemberMap(result.officer);
   };
 
   const clearExpelledBlocked = () => {

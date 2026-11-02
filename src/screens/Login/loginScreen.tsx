@@ -107,7 +107,7 @@ export default function LoginScreen() {
             <input
               className="login-input"
               type="password"
-              placeholder="6文字以上"
+              placeholder={mode === "signup" ? "8文字以上" : ""}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={handleKeyDown}

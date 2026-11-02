@@ -1,0 +1,39 @@
+/* 表示中の例外を受け止めたときの表示(v1.4.1) */
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin: 48px auto;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.error-boundary-icon {
+  font-size: 32px;
+  color: var(--color-text-muted, #9ca6a1);
+}
+
+.error-boundary-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.error-boundary-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted, #9ca6a1);
+  line-height: 1.6;
+}
+
+.error-boundary-retry {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

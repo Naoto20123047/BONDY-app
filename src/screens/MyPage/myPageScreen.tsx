@@ -218,7 +218,7 @@ export default function MyPageScreen() {
 
       {/* クレジット */}
       <div className="mypage-credit">
-        <p className="mypage-credit-app">BONDYアプリ　v1.3.1</p>
+        <p className="mypage-credit-app">BONDYアプリ　v1.4.1</p>
         <div className="mypage-credit-block">
           <p className="mypage-credit-role">開発</p>
           <p className="mypage-credit-name">2023年度情報学部生　吉田 直人</p>
@@ -226,6 +226,10 @@ export default function MyPageScreen() {
         <div className="mypage-credit-block">
           <p className="mypage-credit-role">スタンプデザイン</p>
           <p className="mypage-credit-name">2023年度アニメ・マンガ学部生　茂木 美祐</p>
+        </div>
+        <div className="mypage-credit-block">
+          <p className="mypage-credit-role">アイコンデザイン</p>
+          <p className="mypage-credit-name">2023年度アニメ・マンガ学部生　小林 可純</p>
         </div>
       </div>
     </div>

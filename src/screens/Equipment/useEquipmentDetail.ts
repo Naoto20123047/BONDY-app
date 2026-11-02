@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchMemberNameMap } from "../../lib/members";
+import { fetchMemberNameMap, FORMER_MEMBER_LABEL } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { getEquipmentManagerIds } from "../../lib/equipmentManager";
@@ -60,7 +60,7 @@ export function useEquipmentDetail(id: string | undefined) {
         setLentCount(requests.reduce((sum, r) => sum + r.quantity, 0));
         setBorrowers(
           requests.map((r) => ({
-            memberName: nameMap[r.memberId] ?? "不明",
+            memberName: nameMap[r.memberId] ?? FORMER_MEMBER_LABEL,
             quantity: r.quantity,
             dueDate: r.dueDate,
             overdue: new Date(r.dueDate) < now,
@@ -132,4 +132,4 @@ export function useEquipmentDetail(id: string | undefined) {
     submitting,
     submit,
   } as const;
-}
+}

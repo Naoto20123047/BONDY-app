@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { BandUpdateError, removeBandMember } from "../../lib/bands";
 import { fetchOfficerIds } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { getEquipmentManagerIds } from "../../lib/equipmentManager";
 import { currentFiscalYear } from "../../lib/grade";
 import type { Band, EquipmentRequest, FormType } from "../../Types/types";
-import { todayString } from "../../lib/date";
+import { todayString, endOfDayJstMillis } from "../../lib/date";
 
 
 interface AnsweredForm {
@@ -79,7 +80,8 @@ export function useMyPage() {
           quantity: r.quantity,
           dueDate: r.dueDate,
           status: r.status as "貸出中" | "返却報告済み",
-          overdue: new Date(r.dueDate) < now,
+          // 返却予定日の終わり(日本時間)を過ぎたら延滞。以前は当日の朝9時で延滞になっていた
+          overdue: endOfDayJstMillis(r.dueDate) < now.getTime(),
         }))
       );
 
@@ -167,11 +169,8 @@ export function useMyPage() {
     const ok = window.confirm(`「${target.name}」から脱退します。よろしいですか?`);
     if (!ok) return;
     try {
-      const updatedMembers = target.members.filter((m) => m.memberId !== member.id);
-      await updateDoc(doc(db, "bands", bandId), {
-        members: updatedMembers,
-        memberIds: updatedMembers.map((m) => m.memberId),
-      });
+      // 今のメンバーを読み直してから外す(同時に操作しても片方が消えないように)
+      await removeBandMember(bandId, member.id);
 
       // 幹部全員に通知
       const officerIds = await getOfficerIds();
@@ -185,7 +184,7 @@ export function useMyPage() {
       await fetchData();
     } catch (e) {
       console.error("バンド脱退に失敗しました", e);
-      window.alert("脱退に失敗しました。");
+      window.alert(e instanceof BandUpdateError ? e.message : "脱退に失敗しました。");
     }
   };
 
@@ -248,10 +247,7 @@ export function useMyPage() {
             await updateDoc(doc(db, "bands", b.id), { status: "解散申請中" });
           }
         } else {
-          await updateDoc(doc(db, "bands", b.id), {
-            members: remaining,
-            memberIds: remaining.map((m) => m.memberId),
-          });
+          await removeBandMember(b.id, member.id);
         }
       }
 

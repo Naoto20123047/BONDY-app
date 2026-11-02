@@ -26,6 +26,7 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
     proposeDismissOfficer,
     proposeAssignPosition,
     isOfficerMember,
+    roleDecisionWaitNote,
   } = useMemberDetail(id);
 
   const [selectedPosition, setSelectedPosition] = useState<Position>(assignablePositions[0]);
@@ -167,7 +168,7 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
                   <button className="detail-btn" onClick={promoteToOfficer}>
                     <i className="ti ti-arrow-up" />
                     幹部に昇格
-                    <span className="detail-btn-note">即時反映</span>
+                    <span className="detail-btn-note">即時反映・幹部全員に通知</span>
                   </button>
                 )}
 
@@ -202,6 +203,10 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
                 {isOfficerMember && !iAmLeader && (
                   <p className="detail-note">降格の発議はサークル長のみ可能です</p>
                 )}
+
+                {isOfficerMember && roleDecisionWaitNote && (
+                  <p className="detail-note">{roleDecisionWaitNote}</p>
+                )}
               </div>
             )}
 
@@ -209,7 +214,12 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
             <div className="detail-manage-block">
               <p className="detail-block-label">在籍</p>
 
-              {member.status === "active" ? (
+              {member.status === "active" && isOfficerMember ? (
+                // v1.4.1: 幹部を幹部1人の判断で外せないよう、退会処理・除籍は一般メンバーだけにした
+                <p className="detail-note">
+                  幹部を退会処理・除籍するには、先に降格の申請を通して一般メンバーに戻してください
+                </p>
+              ) : member.status === "active" ? (
                 <>
                   {!member.isOB && (
                     <button className="detail-btn" onClick={registerOB}>
@@ -261,4 +271,4 @@ export default function MemberDetailScreen({ isOfficer }: MemberDetailProps) {
       </div>
     </div>
   );
-}
+}

@@ -113,6 +113,11 @@ export default function EmailChangeSection() {
           <p className="email-change-desc">
             いつでも変更できます。大学のメールは卒業すると使えなくなるので、卒業前に変えておくと安心です。
           </p>
+          {/* v1.4.1: 名簿のアドレスもこのアドレスに変わり、部員から見えることを先に伝える */}
+          <p className="email-change-desc">
+            変更すると、名簿に表示されるメールアドレスも新しいアドレスに変わり、サークルの部員から見えるようになります。
+            個人のアドレスを部員に見せたくない場合は、そのつもりで選んでください。
+          </p>
 
           <div className="edit-field">
             <label className="edit-label">今のログイン用メール</label>

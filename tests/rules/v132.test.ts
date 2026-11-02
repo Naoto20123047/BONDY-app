@@ -1,6 +1,9 @@
 /**
  * Firestore ルールのテスト(v1.3.2)
  *
+ * v1.4.1 で形が変わった操作(作成日時・役職変更の反映・通知の差出人など)は、
+ * v1.4.1 の形に合わせてある。v1.4.1 で塞いだ穴は v141.test.ts にある。
+ *
  * エミュレータに対して流す。実行には Java が必要。
  *   npm run test:rules
  *
@@ -30,6 +33,7 @@ import {
   getDocs,
   query,
   where,
+  serverTimestamp,
 } from "firebase/firestore";
 
 let env: RulesTestEnvironment;
@@ -53,6 +57,13 @@ const member = (id: string, extra: Record<string, unknown> = {}) => ({
   joinedAt: "2026-04-01",
   ...extra,
 });
+
+/** 今の時刻(v1.4.1 から、投稿・コメント・チャットの createdAt はサーバーの時刻と近いことが必要) */
+const now = () => new Date().toISOString();
+
+/** 一般メンバーが名簿を読むときの形(v1.4.1 から在籍中で絞る必要がある) */
+const activeMembers = (db: ReturnType<typeof as>) =>
+  query(collection(db, "members"), where("status", "==", "active"));
 
 /** ログインした人として Firestore を使う */
 const as = (uid: string, email = `${uid}${UNI}`, verified = true) =>
@@ -130,7 +141,7 @@ describe("1. 新規登録", () => {
   it("既存メンバーは確認メールを通っていなくても使える", async () => {
     const db = as("alice", `alice${UNI}`, false);
     await assertSucceeds(getDoc(doc(db, "pages", "intro")));
-    await assertSucceeds(getDocs(collection(db, "members")));
+    await assertSucceeds(getDocs(activeMembers(db)));
   });
 });
 
@@ -151,7 +162,11 @@ describe("2. 投稿の付け替え", () => {
   });
   it("投稿者は解決済みを切り替えられる", async () => {
     await assertSucceeds(
-      updateDoc(doc(as("alice"), "posts", "p1"), { resolved: true, resolvedAt: "2026-11-02" })
+      updateDoc(doc(as("alice"), "posts", "p1"), {
+        resolved: true,
+        resolvedAt: "2026-11-02",
+        resolvedTs: serverTimestamp(),
+      })
     );
   });
   it("投稿者でも authorId は変えられない", async () => {
@@ -164,7 +179,7 @@ describe("2. 投稿の付け替え", () => {
         category: "その他",
         title: "t",
         body: "b",
-        createdAt: "x",
+        createdAt: now(),
         resolved: false,
         isAnonymous: false,
       })
@@ -181,7 +196,7 @@ describe("3. 匿名投稿", () => {
       category: "その他",
       title: "t",
       body: "b",
-      createdAt: "x",
+      createdAt: now(),
       resolved: false,
       isAnonymous: true,
     });
@@ -203,7 +218,9 @@ describe("3. 匿名投稿", () => {
     );
     await assertFails(getDocs(collection(as("bob"), "anonymousAuthors")));
     // 本人は解決済みを切り替えられる、他人はできない
-    await assertSucceeds(updateDoc(doc(as("alice"), "posts", "ap1"), { resolved: true }));
+    await assertSucceeds(
+      updateDoc(doc(as("alice"), "posts", "ap1"), { resolved: true, resolvedTs: serverTimestamp() })
+    );
     await assertFails(updateDoc(doc(as("bob"), "posts", "ap1"), { resolved: false }));
   });
 
@@ -215,7 +232,7 @@ describe("3. 匿名投稿", () => {
       category: "その他",
       title: "t",
       body: "b",
-      createdAt: "x",
+      createdAt: now(),
       resolved: false,
       isAnonymous: true,
     });
@@ -230,7 +247,7 @@ describe("3. 匿名投稿", () => {
       category: "その他",
       title: "t",
       body: "b",
-      createdAt: "x",
+      createdAt: now(),
       resolved: false,
       isAnonymous: true,
     });
@@ -273,8 +290,13 @@ describe("4. フォーム回答", () => {
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
+      // v1.4.1: 回答の書き込みはフォームの締切を見るので、フォームも置く
+      const open = Date.now() + 24 * 60 * 60 * 1000;
+      await setDoc(doc(db, "forms", "f1"), { type: "イベント", title: "f1", deadline: "2099-01-01", questions: [], closesAt: open });
+      await setDoc(doc(db, "forms", "f2"), { type: "アンケート", title: "f2", deadline: "2099-01-01", questions: [], closesAt: open });
       await setDoc(doc(db, "formResponses", "r1"), {
         formId: "f1",
+        formType: "イベント",
         memberId: "alice",
         bandId: "b1",
         answers: { q: "出る" },
@@ -282,6 +304,7 @@ describe("4. フォーム回答", () => {
       });
       await setDoc(doc(db, "formResponses", "r2"), {
         formId: "f2",
+        formType: "アンケート",
         memberId: "alice",
         answers: { q: "a" },
         submittedAt: "x",
@@ -353,10 +376,16 @@ describe("7. 役職変更", () => {
     await assertFails(updateDoc(doc(as("o1"), "members", "alice"), { positions: ["会計担当"] }));
     await assertFails(updateDoc(doc(as("o1"), "members", "o2"), { role: "一般メンバー" }));
   });
-  it("一般メンバーを幹部に昇格するのは即時でよい", async () => {
-    await assertSucceeds(updateDoc(doc(as("o1"), "members", "alice"), { role: "幹部" }));
+  it("一般メンバーを幹部に昇格するのは即時でよい(昇格の時刻と昇格させた人を残す。v1.4.1)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("o1"), "members", "alice"), {
+        role: "幹部",
+        promotedAt: serverTimestamp(),
+        promotedBy: "o1",
+      })
+    );
   });
-  it("承認が3人そろった申請だけを反映できる", async () => {
+  it("承認が3人そろった申請だけを、最後の承認と同じバッチで反映できる(v1.4.1)", async () => {
     await assertSucceeds(
       setDoc(doc(as("o1"), "roleChangeRequests", "rq1"), {
         type: "assign_position",
@@ -368,33 +397,49 @@ describe("7. 役職変更", () => {
         position: "会計担当",
       })
     );
-    // 承認が足りないうちは approved にできない
-    await assertFails(
-      updateDoc(doc(as("o2"), "roleChangeRequests", "rq1"), {
+    // 承認が足りないうちは applied にできない
+    {
+      const db = as("o2");
+      const batch = writeBatch(db);
+      batch.update(doc(db, "roleChangeRequests", "rq1"), {
         approvals: arrayUnion("o2"),
-        status: "approved",
-      })
-    );
+        status: "applied",
+        appliedAt: serverTimestamp(),
+      });
+      batch.update(doc(db, "members", "alice"), { positions: ["会計担当"], appliedRequestId: "rq1" });
+      await assertFails(batch.commit());
+    }
     await assertSucceeds(
       updateDoc(doc(as("o2"), "roleChangeRequests", "rq1"), { approvals: arrayUnion("o2") })
     );
-    // 反映はまだできない
+    // 申請を applied にせず、反映だけはできない
     await assertFails(
       updateDoc(doc(as("o2"), "members", "alice"), { positions: ["会計担当"], appliedRequestId: "rq1" })
     );
-    await assertSucceeds(
-      updateDoc(doc(as("o3"), "roleChangeRequests", "rq1"), {
-        approvals: arrayUnion("o3"),
-        status: "approved",
-      })
-    );
-    await assertSucceeds(
-      updateDoc(doc(as("o3"), "members", "alice"), { positions: ["会計担当"], appliedRequestId: "rq1" })
-    );
     // 申請と違う内容は反映できない
-    await assertFails(
-      updateDoc(doc(as("o3"), "members", "bob"), { positions: ["会計担当"], appliedRequestId: "rq1" })
-    );
+    {
+      const db = as("o3");
+      const batch = writeBatch(db);
+      batch.update(doc(db, "roleChangeRequests", "rq1"), {
+        approvals: arrayUnion("o3"),
+        status: "applied",
+        appliedAt: serverTimestamp(),
+      });
+      batch.update(doc(db, "members", "bob"), { positions: ["会計担当"], appliedRequestId: "rq1" });
+      await assertFails(batch.commit());
+    }
+    // 最後の承認と反映を同じバッチで
+    {
+      const db = as("o3");
+      const batch = writeBatch(db);
+      batch.update(doc(db, "roleChangeRequests", "rq1"), {
+        approvals: arrayUnion("o3"),
+        status: "applied",
+        appliedAt: serverTimestamp(),
+      });
+      batch.update(doc(db, "members", "alice"), { positions: ["会計担当"], appliedRequestId: "rq1" });
+      await assertSucceeds(batch.commit());
+    }
   });
   it("承認の数を水増しできない", async () => {
     await assertFails(
@@ -428,6 +473,7 @@ describe("8. 通知", () => {
     link: "/home",
     read: false,
     createdAt: "2026-11-01",
+    createdBy: "alice",
   };
   it("一般メンバーは操作に伴う通知を作れる", async () => {
     await assertSucceeds(setDoc(doc(as("alice"), "notifications", "n1"), { ...base, type: "post_comment" }));
@@ -480,7 +526,7 @@ describe("10. リアクション・スタンプ・アバター", () => {
         senderId: "alice",
         type: "stamp",
         stamp: "https://evil.example/a.png",
-        createdAt: "x",
+        createdAt: now(),
       })
     );
     await assertSucceeds(
@@ -488,7 +534,7 @@ describe("10. リアクション・スタンプ・アバター", () => {
         senderId: "alice",
         type: "stamp",
         stamp: "/stamps/hello.png",
-        createdAt: "x",
+        createdAt: now(),
       })
     );
   });

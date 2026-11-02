@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchActiveMembers, fetchOfficerIds } from "../../lib/members";
+import { fetchActiveMembers, fetchOfficerIds, FORMER_MEMBER_LABEL } from "../../lib/members";
+import { addBandMember, BandUpdateError, removeBandMember } from "../../lib/bands";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotifications } from "../../lib/notify";
 import { calcGrade } from "../../lib/grade";
@@ -57,7 +58,7 @@ export function useBandDetail(id: string | undefined) {
       setMemberViews(
         bandData.members.map((m) => ({
           memberId: m.memberId,
-          name: nameMap[m.memberId] ?? "不明",
+          name: nameMap[m.memberId] ?? FORMER_MEMBER_LABEL,
           part: m.part,
         }))
       );
@@ -126,11 +127,13 @@ export function useBandDetail(id: string | undefined) {
       return;
     }
     try {
-      const updatedMembers = [...band.members, { memberId: newMemberId, part: part.trim() }];
-      await updateDoc(doc(db, "bands", band.id), {
-        members: updatedMembers,
-        memberIds: updatedMembers.map((m) => m.memberId),
-      });
+      // 今のメンバーを読み直してから足す(同時に操作しても片方が消えないように)
+      const result = await addBandMember(band.id, newMemberId, part);
+      if (result === null) {
+        window.alert("すでにこのバンドのメンバーです。");
+        await fetchBand();
+        return;
+      }
 
       // 幹部全員に通知
       const addedName = addableMembers.find((m) => m.id === newMemberId)?.name ?? "メンバー";
@@ -145,7 +148,7 @@ export function useBandDetail(id: string | undefined) {
       await fetchBand();
     } catch (e) {
       console.error("メンバー追加に失敗しました", e);
-      window.alert("メンバーの追加に失敗しました。");
+      window.alert(e instanceof BandUpdateError ? e.message : "メンバーの追加に失敗しました。");
     }
   };
 
@@ -164,11 +167,12 @@ export function useBandDetail(id: string | undefined) {
     const ok = window.confirm(message);
     if (!ok) return;
     try {
-      const updatedMembers = band.members.filter((m) => m.memberId !== targetMemberId);
-      await updateDoc(doc(db, "bands", band.id), {
-        members: updatedMembers,
-        memberIds: updatedMembers.map((m) => m.memberId),
-      });
+      // 今のメンバーを読み直してから外す(同時に操作しても片方が消えないように)
+      const result = await removeBandMember(band.id, targetMemberId);
+      if (result === null) {
+        await fetchBand();
+        return;
+      }
 
       // 幹部全員に通知
       const officerIds = await getOfficerIds();
@@ -182,7 +186,7 @@ export function useBandDetail(id: string | undefined) {
       await fetchBand();
     } catch (e) {
       console.error("メンバー脱退に失敗しました", e);
-      window.alert("脱退処理に失敗しました。");
+      window.alert(e instanceof BandUpdateError ? e.message : "脱退処理に失敗しました。");
     }
   };
 
@@ -213,4 +217,4 @@ export function useBandDetail(id: string | undefined) {
     removeMember,
     requestDissolve,
   } as const;
-}
+}

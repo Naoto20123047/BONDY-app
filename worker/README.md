@@ -12,11 +12,15 @@ Firebase Spark プラン(無料)では Cloud Functions が使えないため、�
 |---|---|---|---|
 | GET | `/health` | 疎通確認 | 不要 |
 | POST | `/notify/teams` | Teams への通知中継(C-2) | 在籍メンバー |
-| POST | `/admin/disable-user` | Auth アカウントの有効/無効切り替え(A-3) | 幹部、または本人の退会時 |
+| POST | `/admin/disable-user` | Auth アカウントの有効/無効切り替え(A-3) | 幹部。対象が一般メンバーで、無効化は除籍済み・有効化は在籍中のときだけ(v1.4.1) |
 | POST | `/images/upload` | 紹介ページの画像を KV に保存する | 幹部 |
 | POST | `/images/sign` | 保存済み画像の署名付きURLを発行する | サインイン済み |
 | POST | `/images/delete` | 画像を KV から削除する | 幹部 |
 | GET | `/images/file` | 画像の実体を返す | 署名で検証(IDトークン不要) |
+| POST | `/admin/backup/latest` | いちばん新しい定期バックアップを返す(v1.4.1) | 幹部 |
+
+Cron(週に1回、月曜 3:00 日本時間)で主要なコレクションを KV にバックアップする(`src/backup.ts`)。
+`BACKUP_SERVICE_ACCOUNT` を設定するまでは何もしない。
 
 画像の置き場所は Cloudflare Workers KV。`<img src>` に Authorization ヘッダを
 付けられないため、`/images/file` だけは ID トークンではなく HMAC 署名付きの URL で
@@ -85,6 +89,23 @@ npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
 npx wrangler secret put IMAGE_SIGNING_KEY
 ```
 
+v1.4.1 から、定期バックアップを使うときはもう1つ設定する(任意)。
+
+```bash
+# バックアップ専用のサービスアカウントキー。
+# Google Cloud コンソール → IAM と管理 → サービスアカウント で新しく作り、
+# ロールは「Cloud Datastore 閲覧者」だけを付ける(書き込みはできない)
+npx wrangler secret put BACKUP_SERVICE_ACCOUNT
+```
+
+取り出すときは、幹部のアカウントでアプリにログインした状態でブラウザのコンソールから:
+
+```js
+const t = await firebase.auth().currentUser.getIdToken(); // アプリの画面で取得したトークン
+await (await fetch("https://bondy-worker.<サブドメイン>.workers.dev/admin/backup/latest", {
+  method: "POST", headers: { Authorization: `Bearer ${t}` } })).json();
+```
+
 `wrangler secret put` は **名前だけを引数に渡し、値は対話プロンプトに入力する。**
 `wrangler secret put <値>` と書くと値が名前として登録され、
 `wrangler secret list` に値が丸見えで並ぶ。やってしまった場合は
@@ -93,6 +114,11 @@ npx wrangler secret put IMAGE_SIGNING_KEY
 
 サービスアカウントには Identity Toolkit の管理権限が必要。Firebase が自動生成する
 `firebase-adminsdk-xxxxx@bondy-app-66ca4.iam.gserviceaccount.com` には既に付いている。
+
+**ただし自動生成のものはプロジェクト全体を操作できる権限を持つ**ため、Worker の鍵が漏れると
+被害が大きい(セキュリティ監査 v1.4.0 の 14-1)。Worker 専用のサービスアカウントを作り、
+ロールは「Firebase Authentication 管理者」だけを付けて、その鍵を `FIREBASE_SERVICE_ACCOUNT` に入れ直すこと。
+入れ直したら、古い鍵は Google Cloud コンソールで削除する。
 
 ### デプロイ
 

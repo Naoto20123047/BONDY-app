@@ -739,3 +739,21 @@
   background: var(--color-danger);
   color: #fff;
 }
+
+/* ===== 幹部による非表示(v1.4.1) ===== */
+.chat-bubble.hidden-by-officer {
+  opacity: 0.55;
+}
+
+.chat-msg-hidden-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-text-muted, #888);
+}
+
+.chat-msg.mine .chat-msg-hidden-note {
+  align-self: flex-end;
+}

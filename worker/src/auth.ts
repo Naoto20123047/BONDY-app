@@ -13,6 +13,10 @@ const JWKS_URL =
 // キャッシュのキー(Cache API はリクエストURLをキーにするため、実在するURLを使う)
 const JWKS_CACHE_KEY = "https://bondy-worker.internal/jwks";
 
+/** 鍵が見つからないときに取り直す間隔の下限(v1.4.1) */
+const FORCED_REFRESH_INTERVAL_MS = 60 * 1000;
+let lastForcedRefresh = 0;
+
 export interface VerifiedToken {
   uid: string;
   email: string | null;
@@ -51,11 +55,11 @@ function decodeJsonSegment<T>(segment: string): T {
  * 公開鍵を取得する。Cache API に入っていればそれを使う。
  * レスポンスの Cache-Control をそのまま利用するので、鍵のローテーションにも追従する。
  */
-async function fetchJwks(): Promise<Jwk[]> {
+async function fetchJwks(forceRefresh = false): Promise<Jwk[]> {
   const cache = caches.default;
   const cacheKey = new Request(JWKS_CACHE_KEY);
 
-  let response = await cache.match(cacheKey);
+  let response = forceRefresh ? undefined : await cache.match(cacheKey);
   if (!response) {
     const upstream = await fetch(JWKS_URL);
     if (!upstream.ok) {
@@ -119,9 +123,16 @@ export async function verifyIdToken(
     if (typeof payload.exp !== "number" || payload.exp + skew < now) return null;
     if (typeof payload.iat !== "number" || payload.iat - skew > now) return null;
 
-    // 署名の検証
-    const keys = await fetchJwks();
-    const jwk = keys.find((k) => k.kid === header.kid);
+    // 署名の検証。
+    // v1.4.1: 鍵が見つからないときは、キャッシュを無視して1回だけ取り直す。
+    // Google が鍵を入れ替えた直後は、キャッシュに古い鍵しか無く、
+    // キャッシュが切れるまで全員の認証が失敗し続けることがあったため
+    // 取り直しは1分に1回まで(でたらめな kid のトークンを送り続けて、Google への取得を繰り返させないため)
+    let jwk = (await fetchJwks()).find((k) => k.kid === header.kid);
+    if (!jwk && Date.now() - lastForcedRefresh > FORCED_REFRESH_INTERVAL_MS) {
+      lastForcedRefresh = Date.now();
+      jwk = (await fetchJwks(true)).find((k) => k.kid === header.kid);
+    }
     if (!jwk) return null;
 
     const publicKey = await crypto.subtle.importKey(

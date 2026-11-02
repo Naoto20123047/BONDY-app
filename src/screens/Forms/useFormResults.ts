@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { fetchAllMembers } from "../../lib/members";
+import { asTextRecord } from "../../lib/sanitize";
 import { calcGrade } from "../../lib/grade";
 import { formatParts } from "../../lib/parts";
 import { filterVisibleQuestions } from "./useFormAnswer";
@@ -59,10 +60,11 @@ export function useFormResults(id: string | undefined) {
         // このフォームの全回答
         const respQ = query(collection(db, "formResponses"), where("formId", "==", id));
         const respSnap = await getDocs(respQ);
-        const responses: FormResponse[] = respSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<FormResponse, "id">),
-        }));
+        const responses: FormResponse[] = respSnap.docs.map((d) => {
+          const raw = d.data() as Omit<FormResponse, "id">;
+          // 回答の値は文字列にそろえる。以前は文字列以外の値を1件入れるだけで集計画面が止まった
+          return { ...raw, id: d.id, answers: asTextRecord(raw.answers) };
+        });
 
         // メンバー情報
         const memMap: Record<string, Member> = {};
@@ -168,4 +170,4 @@ export function useFormResults(id: string | undefined) {
     form?.questions.find((q) => q.id === questionId)?.showIf !== undefined;
 
   return { form, rows, isEvent, loading, summarize, countVisible, isConditional } as const;
-}
+}

@@ -20,7 +20,8 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { todayString } from "./date";
+import { endOfDayJstMillis, todayString } from "./date";
+import { asNumber, asText } from "./sanitize";
 import type {
   Band,
   Live,
@@ -57,7 +58,7 @@ export const formatSeconds = (sec: number): string => {
 };
 
 /** 締切日の終わり(日本時間 23:59:59)をミリ秒で */
-export const endOfDayMillis = (date: string): number => Date.parse(`${date}T23:59:59+09:00`);
+export const endOfDayMillis = (date: string): number => endOfDayJstMillis(date);
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -320,9 +321,78 @@ export async function saveLineup(id: string, lineup: LiveSlot[], publish: boolea
   });
 }
 
+// ---------------------------------------------------------------------------
+// 読んだデータの型をそろえる(v1.4.1)
+//
+// ルールでは配列の中身(セットリストの各曲、編成の各メンバー)の型までは確かめきれない。
+// 想定外の型の値が1件あるだけで、当日の資料などを開いた全員の画面が止まるので、
+// 画面に渡す前にここでそろえる。
+// ---------------------------------------------------------------------------
+
+const toEntry = (id: string, data: unknown): LiveEntry => {
+  const raw = data as Partial<LiveEntry>;
+  return {
+    id,
+    bandId: asText(raw.bandId) || id,
+    bandName: asText(raw.bandName),
+    participate: raw.participate === true,
+    desiredMinutes: asNumber(raw.desiredMinutes),
+    unavailable: asText(raw.unavailable),
+    note: asText(raw.note),
+    updatedBy: asText(raw.updatedBy),
+    updatedAt: asText(raw.updatedAt),
+  };
+};
+
+const toSetlist = (id: string, data: unknown): LiveSetlist => {
+  const raw = data as Partial<LiveSetlist>;
+  const items = Array.isArray(raw.items) ? (raw.items as unknown[]) : [];
+  return {
+    id,
+    bandId: asText(raw.bandId) || id,
+    submittedAt: asText(raw.submittedAt),
+    updatedBy: asText(raw.updatedBy),
+    items: items
+      .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
+      .map((it, i) => ({
+        id: asText(it.id) || `item-${i}`,
+        kind: it.kind === "mc" ? "mc" : "song",
+        title: asText(it.title),
+        songType: it.songType === "オリジナル" || it.songType === "コピー" ? it.songType : undefined,
+        artist: it.artist === undefined ? undefined : asText(it.artist),
+        seconds: asNumber(it.seconds),
+        note: it.note === undefined ? undefined : asText(it.note),
+      })),
+  };
+};
+
+const toStagePlan = (id: string, data: unknown): LiveStagePlan => {
+  const raw = data as Partial<LiveStagePlan>;
+  const members = Array.isArray(raw.members) ? (raw.members as unknown[]) : [];
+  return {
+    id,
+    bandId: asText(raw.bandId) || id,
+    monitorRequest: asText(raw.monitorRequest),
+    submittedAt: asText(raw.submittedAt),
+    updatedBy: asText(raw.updatedBy),
+    members: members
+      .filter((m): m is Record<string, unknown> => !!m && typeof m === "object")
+      .map((m) => ({
+        memberId: asText(m.memberId),
+        name: asText(m.name),
+        part: asText(m.part),
+        useVenueGear: m.useVenueGear === true,
+        stereo: m.stereo === true,
+        extras: asText(m.extras),
+        x: asNumber(m.x, 50),
+        y: asNumber(m.y, 50),
+      })),
+  };
+};
+
 export async function fetchEntries(liveId: string): Promise<LiveEntry[]> {
   const snap = await getDocs(collection(db, "lives", liveId, "entries"));
-  return snap.docs.map((d) => ({ ...(d.data() as Omit<LiveEntry, "id">), id: d.id }));
+  return snap.docs.map((d) => toEntry(d.id, d.data()));
 }
 
 export async function saveEntry(liveId: string, entry: Omit<LiveEntry, "id">): Promise<void> {
@@ -331,12 +401,12 @@ export async function saveEntry(liveId: string, entry: Omit<LiveEntry, "id">): P
 
 export async function fetchSetlists(liveId: string): Promise<LiveSetlist[]> {
   const snap = await getDocs(collection(db, "lives", liveId, "setlists"));
-  return snap.docs.map((d) => ({ ...(d.data() as Omit<LiveSetlist, "id">), id: d.id }));
+  return snap.docs.map((d) => toSetlist(d.id, d.data()));
 }
 
 export async function fetchSetlist(liveId: string, bandId: string): Promise<LiveSetlist | null> {
   const snap = await getDoc(doc(db, "lives", liveId, "setlists", bandId));
-  return snap.exists() ? { ...(snap.data() as Omit<LiveSetlist, "id">), id: snap.id } : null;
+  return snap.exists() ? toSetlist(snap.id, snap.data()) : null;
 }
 
 export async function saveSetlist(
@@ -359,12 +429,12 @@ export async function saveSetlist(
 
 export async function fetchStagePlans(liveId: string): Promise<LiveStagePlan[]> {
   const snap = await getDocs(collection(db, "lives", liveId, "stagePlans"));
-  return snap.docs.map((d) => ({ ...(d.data() as Omit<LiveStagePlan, "id">), id: d.id }));
+  return snap.docs.map((d) => toStagePlan(d.id, d.data()));
 }
 
 export async function fetchStagePlan(liveId: string, bandId: string): Promise<LiveStagePlan | null> {
   const snap = await getDoc(doc(db, "lives", liveId, "stagePlans", bandId));
-  return snap.exists() ? { ...(snap.data() as Omit<LiveStagePlan, "id">), id: snap.id } : null;
+  return snap.exists() ? toStagePlan(snap.id, snap.data()) : null;
 }
 
 export async function saveStagePlan(

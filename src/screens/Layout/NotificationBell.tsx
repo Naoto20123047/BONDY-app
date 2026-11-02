@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../lib/useNotifications";
+import { useAuth } from "../../lib/AuthContext";
 import "./notificationBell.css";
 
 interface NotificationBellProps {
@@ -10,6 +11,18 @@ interface NotificationBellProps {
 export default function NotificationBell({ variant = "bell" }: NotificationBellProps) {
   const navigate = useNavigate();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { member, memberMap } = useAuth();
+
+  /**
+   * 差出人の表示(v1.4.1)。
+   * 通知の文面は差出人が自由に書けるため、「幹部より」のような文面でも
+   * 誰が送ったものかが分かるようにする。自分で自分に作ったお知らせには出さない
+   */
+  const senderLabel = (createdBy: string | undefined): string | null => {
+    if (!createdBy || createdBy === member?.id) return null;
+    const name = memberMap[createdBy]?.name;
+    return name ? `${name}さんから` : "退会したメンバーから";
+  };
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -71,7 +84,12 @@ export default function NotificationBell({ variant = "bell" }: NotificationBellP
                   {!n.read && <span className="notif-dot" />}
                   <div className="notif-item-body">
                     <span className="notif-item-msg">{n.message}</span>
-                    <span className="notif-item-date">{n.createdAt}</span>
+                    <span className="notif-item-date">
+                      {senderLabel(n.createdBy) && (
+                        <span className="notif-item-sender">{senderLabel(n.createdBy)} · </span>
+                      )}
+                      {n.createdAt}
+                    </span>
                   </div>
                 </button>
               ))
@@ -81,4 +99,4 @@ export default function NotificationBell({ variant = "bell" }: NotificationBellP
       )}
     </div>
   );
-}
+}

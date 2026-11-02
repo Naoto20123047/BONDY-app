@@ -4,6 +4,8 @@ import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 import type { Band, FormDef, FormQuestion, FormResponse } from "../../Types/types";
 import { todayString } from "../../lib/date";
+import { isFormClosed } from "../../lib/formLabel";
+import { asTextRecord } from "../../lib/sanitize";
 
 /**
  * 表示条件をもとに、表示すべき質問だけを返す。
@@ -63,11 +65,29 @@ export function useFormAnswer(id: string | undefined) {
         const formData = { id: formSnap.id, ...(formSnap.data() as Omit<FormDef, "id">) };
         setForm(formData);
 
-        // このフォームの全回答(バンド単位の編集判定に使う)
-        const respQ = query(collection(db, "formResponses"), where("formId", "==", id));
+        // このフォームの回答。
+        // v1.4.1: 個別アンケートの回答は本人と幹部しか読めなくなった。
+        //  - バンドフォーム: バンド単位で1つの回答を共有して直すので、バンドフォームの回答を読む
+        //  - 個別アンケート: 自分の回答だけを読む
+        const respQ =
+          formData.type === "イベント"
+            ? query(
+                collection(db, "formResponses"),
+                where("formId", "==", id),
+                where("formType", "==", "イベント")
+              )
+            : query(
+                collection(db, "formResponses"),
+                where("formId", "==", id),
+                where("memberId", "==", member.id)
+              );
         const respSnap = await getDocs(respQ);
         setResponses(
-          respSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<FormResponse, "id">) }))
+          respSnap.docs.map((d) => {
+            const raw = d.data() as Omit<FormResponse, "id">;
+            // 回答の値は文字列にそろえる(型が違う値で画面が止まらないように)
+            return { ...raw, id: d.id, answers: asTextRecord(raw.answers) };
+          })
         );
 
         // 自分の所属バンド(承認済み、自分がメンバー)
@@ -84,7 +104,7 @@ export function useFormAnswer(id: string | undefined) {
           const mine = respSnap.docs
             .map((d) => ({ id: d.id, ...(d.data() as Omit<FormResponse, "id">) }))
             .find((r) => r.memberId === member.id);
-          if (mine) setAnswers({ ...mine.answers });
+          if (mine) setAnswers(asTextRecord(mine.answers));
         }
 
       } catch (e) {
@@ -97,7 +117,8 @@ export function useFormAnswer(id: string | undefined) {
   }, [id, member]);
 
   const isEvent = form?.type === "イベント";
-  const isExpired = form ? new Date(form.deadline) < new Date() : false;
+  // 締切は締切日の終わり(日本時間)。ルールでも締切後の回答は弾かれる(v1.4.1)
+  const isExpired = form ? isFormClosed(form) : false;
 
   // 選択中バンドの既存回答(あれば編集モード)
   const existingResponse = responses.find((r) => r.bandId === bandId);
@@ -119,6 +140,10 @@ export function useFormAnswer(id: string | undefined) {
 
   const submit = async (onDone: () => void) => {
     if (!form || !member) return;
+    if (isFormClosed(form)) {
+      window.alert("締切を過ぎているため回答できません。");
+      return;
+    }
     if (isEvent && !bandId) {
       window.alert("出演バンドを選択してください。");
       return;
@@ -156,6 +181,7 @@ export function useFormAnswer(id: string | undefined) {
         } else {
           await addDoc(collection(db, "formResponses"), {
             formId: form.id,
+            formType: form.type,
             memberId: member.id,
             bandId,
             answers: cleanedAnswers,
@@ -174,6 +200,7 @@ export function useFormAnswer(id: string | undefined) {
         } else {
           await addDoc(collection(db, "formResponses"), {
             formId: form.id,
+            formType: form.type,
             memberId: member.id,
             answers: cleanedAnswers,
             submittedAt: todayString(),
@@ -205,4 +232,4 @@ export function useFormAnswer(id: string | undefined) {
     submitting,
     submit,
   } as const;
-}
+}

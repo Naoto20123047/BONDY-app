@@ -59,3 +59,14 @@ export function formatMonthDay(date: string | Date | undefined): string {
   if (Number.isNaN(parsed.getTime())) return typeof date === "string" ? date : "";
   return `${parsed.getMonth() + 1}月${parsed.getDate()}日`;
 }
+
+/**
+ * YYYY-MM-DD の締切日の終わり(日本時間 23:59:59)をミリ秒で返す。
+ *
+ * `new Date("2026-11-02")` は世界標準時の0時(日本時間の朝9時)として解釈されるため、
+ * それと現在時刻を比べると、締切日の朝9時で締め切られてしまう(v1.4.0 までのフォームの不具合)。
+ * 締切の判定はこれを使うこと。解釈できない文字列は NaN を返す。
+ */
+export function endOfDayJstMillis(date: string): number {
+  return Date.parse(`${date}T23:59:59+09:00`);
+}

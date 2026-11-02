@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { collection, getDocs, query, where, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
+import { isFormClosed } from "../../lib/formLabel";
 import type { FormDef, FormQuestion, FormResponse, FormType } from "../../Types/types";
 
 export interface FormListItem {
@@ -9,6 +10,7 @@ export interface FormListItem {
   title: string;
   type: FormType;
   deadline: string;
+  closesAt?: number;
   questions: FormQuestion[];
   answered: boolean;
 }
@@ -50,6 +52,7 @@ export function useForms() {
             title: f.title,
             type: f.type,
             deadline: f.deadline,
+            closesAt: f.closesAt,
             questions: f.questions,
             answered: answeredFormIds.has(f.id),
           }))
@@ -63,12 +66,12 @@ export function useForms() {
     fetchForms();
   }, [member]);
 
-  const now = new Date();
-  const isExpired = (deadline: string) => new Date(deadline) < now;
+  // 締切は締切日の終わり(日本時間)。以前は締切日の朝9時で締め切られていた(v1.4.1 で修正)
+  const isExpired = (f: Pick<FormListItem, "deadline" | "closesAt">) => isFormClosed(f);
 
-  const pending = forms.filter((f) => !f.answered && !isExpired(f.deadline));
+  const pending = forms.filter((f) => !f.answered && !isExpired(f));
   const answered = forms.filter((f) => f.answered);
-  const expired = forms.filter((f) => !f.answered && isExpired(f.deadline));
+  const expired = forms.filter((f) => !f.answered && isExpired(f));
 
   const deleteForm = async (formId: string, title: string) => {
     const ok = window.confirm(`フォーム「${title}」を削除します。回答も全て削除され、元に戻せません。よろしいですか?`);
@@ -90,4 +93,4 @@ export function useForms() {
   };
 
   return { pending, answered, expired, loading, isExpired, deleteForm } as const;
-}
+}

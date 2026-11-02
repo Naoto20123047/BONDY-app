@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { fetchActiveMembers } from "../../lib/members";
+import { MAX_BAND_MEMBERS, MAX_PART_LENGTH } from "../../lib/bands";
 import { useAuth } from "../../lib/AuthContext";
 import { notifyNewBand } from "../../lib/teamsNotify";
 import type { Member } from "../../Types/types";
@@ -97,6 +98,15 @@ export function useCreateBand() {
       window.alert("パートが未入力のメンバーがいます。");
       return;
     }
+    // ルールの上限と揃えている(lib/bands.ts)
+    if (name.trim().length > 50) {
+      window.alert("バンド名は50文字以内で入力してください。");
+      return;
+    }
+    if (selected.length > MAX_BAND_MEMBERS) {
+      window.alert(`1つのバンドに入れるのは${MAX_BAND_MEMBERS}人までです。`);
+      return;
+    }
     setSaving(true);
     try {
       // bandsコレクションに status「申請中」で新規作成
@@ -104,7 +114,10 @@ export function useCreateBand() {
       // Firestore のルールで「そのバンドのメンバーか」を判定するために持たせている
       const bandRef = await addDoc(collection(db, "bands"), {
         name: name.trim(),
-        members: selected.map((s) => ({ memberId: s.memberId, part: s.part.trim() })),
+        members: selected.map((s) => ({
+          memberId: s.memberId,
+          part: s.part.trim().slice(0, MAX_PART_LENGTH),
+        })),
         memberIds: selected.map((s) => s.memberId),
         status: "申請中",
       });

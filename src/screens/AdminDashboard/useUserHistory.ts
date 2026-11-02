@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { fetchFormerMembers } from "../../lib/members";
+import { writeAuditLog } from "../../lib/auditLog";
 import type { MemberStatus } from "../../Types/types";
 import { calcGrade } from "../../lib/grade";
 
@@ -59,13 +60,18 @@ export function useUserHistory() {
     const ok = window.confirm(
       `${target?.name}さんのデータを完全に削除します。\n` +
         `この操作は取り消せません。\n\n` +
-        `削除後は、本人がログインしても新規メンバーとして登録し直すことになります。\n\n` +
+        (target?.status === "expelled"
+          ? `除籍した人は、削除後も登録し直すことはできません。\n\n`
+          : `削除後は、本人がログインしても新規メンバーとして登録し直すことになります。\n\n`) +
         `本当によろしいですか?`
     );
     if (!ok) return;
     try {
       // TODO: 本来は関連データ(会費・バンド在籍・機材履歴など)も削除する
+      // 除籍した人の再登録を止める記録(blockedUids)は消さない(v1.4.1)。
+      // 消すと、アカウントの無効化に失敗していた場合に、本人が入り直せてしまう
       await deleteDoc(doc(db, "members", id));
+      await writeAuditLog("delete_member", id, target?.name ?? "");
       setMembers((prev) => prev.filter((m) => m.id !== id));
     } catch (e) {
       console.error("完全削除に失敗しました", e);

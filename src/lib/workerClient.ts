@@ -9,7 +9,8 @@
  * 未設定でもアプリが壊れないよう、呼び出し側で isWorkerConfigured() を見て分岐すること。
  */
 
-import { auth } from "./firebase";
+import { getToken } from "firebase/app-check";
+import { appCheck, auth } from "./firebase";
 
 const WORKER_URL = (import.meta.env.VITE_WORKER_URL ?? "").replace(/\/$/, "");
 
@@ -34,12 +35,24 @@ export async function callWorker<T>(path: string, body: unknown): Promise<T> {
 
   const token = await user.getIdToken();
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  // App Check を使っているときは、そのトークンも渡す(v1.4.1)。
+  // Worker はこれを Firestore にそのまま渡すので、App Check を「強制」にしても動く
+  if (appCheck) {
+    try {
+      const result = await getToken(appCheck);
+      headers["X-Firebase-AppCheck"] = result.token;
+    } catch (e) {
+      console.error("App Check のトークンの取得に失敗しました", e);
+    }
+  }
+
   const response = await fetch(`${WORKER_URL}${path}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
