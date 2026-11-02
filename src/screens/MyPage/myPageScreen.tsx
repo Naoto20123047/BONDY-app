@@ -227,6 +227,10 @@ export default function MyPageScreen() {
           <p className="mypage-credit-role">スタンプデザイン</p>
           <p className="mypage-credit-name">2023年度アニメ・マンガ学部生　茂木 美祐</p>
         </div>
+        <div className="mypage-credit-block">
+          <p className="mypage-credit-role">アイコンデザイン</p>
+          <p className="mypage-credit-name">2023年度アニメ・マンガ学部生　小林 可純</p>
+        </div>
       </div>
     </div>
   );
