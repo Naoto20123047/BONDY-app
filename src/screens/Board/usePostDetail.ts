@@ -11,16 +11,21 @@ import {
   updateDoc,
   deleteDoc,
   writeBatch,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchMemberNameMap } from "../../lib/members";
+import { fetchMemberNameMap, FORMER_MEMBER_LABEL } from "../../lib/members";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotification } from "../../lib/notify";
 import { fetchMyAnonymousEntries, markAnonymousPostSeen, nextAnonLabel } from "../../lib/anon";
 import { toggleReaction, cleanReactions } from "../../lib/reactions";
+import { asText } from "../../lib/sanitize";
 import type { Comment, Post } from "../../Types/types";
 
 export type CommentType = "text" | "stamp";
+
+/** 匿名スレッドで、投稿者本人のコメントに付ける表示名(firestore.rules と揃える) */
+export const POST_AUTHOR_LABEL = "投稿者";
 
 export interface CommentView extends Comment {
   /** 表示名。匿名スレッドでは「匿名A」などの表示名 */
@@ -56,7 +61,15 @@ export function usePostDetail(id: string | undefined) {
         setLoading(false);
         return;
       }
-      const postData = { id: snap.id, ...(snap.data() as Omit<Post, "id">) };
+      const raw = snap.data() as Omit<Post, "id">;
+      // 型が想定と違う値で画面が止まらないよう、文字列にそろえる(v1.4.1)
+      const postData: Post = {
+        ...raw,
+        id: snap.id,
+        title: asText(raw.title),
+        body: asText(raw.body),
+        category: asText(raw.category) as Post["category"],
+      };
       setPost(postData);
 
       if (postData.isAnonymous) {
@@ -67,7 +80,7 @@ export function usePostDetail(id: string | undefined) {
         setAuthorName(mine.has(postData.id) ? "匿名（あなた）" : "匿名");
       } else {
         const nameMap = await fetchMemberNameMap();
-        setAuthorName(nameMap[postData.authorId ?? ""] ?? "不明");
+        setAuthorName(nameMap[postData.authorId ?? ""] ?? FORMER_MEMBER_LABEL);
       }
     } catch (e) {
       console.error("投稿の取得に失敗しました", e);
@@ -111,14 +124,14 @@ export function usePostDetail(id: string | undefined) {
               postId: raw.postId,
               authorId: raw.authorId,
               anonLabel: raw.anonLabel,
-              body: raw.body ?? "",
+              body: asText(raw.body),
               createdAt: raw.createdAt,
-              authorName: raw.anonLabel ?? nameMap[raw.authorId ?? ""] ?? "不明",
+              authorName: asText(raw.anonLabel) || nameMap[raw.authorId ?? ""] || FORMER_MEMBER_LABEL,
               // 匿名コメントは authorId を持たないので、isMine は表示時に myAnonIds で補う
               isMine: raw.authorId !== undefined && raw.authorId === member?.id,
               reactions: cleanReactions(raw.reactions),
               type,
-              stamp: raw.stamp ?? "",
+              stamp: asText(raw.stamp),
             };
           });
           setComments(list);
@@ -163,7 +176,9 @@ export function usePostDetail(id: string | undefined) {
     const ref = doc(collection(db, "comments"));
     const base = { postId: post.id, ...fields, createdAt: new Date().toISOString() };
     if (post.isAnonymous) {
-      const label = nextAnonLabel(comments, myAnonIds);
+      // 投稿者本人のコメントは「投稿者」と表示する(v1.4.1)。
+      // ルールで「投稿者」を名乗れるのは投稿者本人だけにしてあるので、他の人は偽れない
+      const label = isMyPost ? POST_AUTHOR_LABEL : nextAnonLabel(comments, myAnonIds);
       const batch = writeBatch(db);
       batch.set(ref, { ...base, anonLabel: label });
       batch.set(doc(db, "anonymousAuthors", ref.id), {
@@ -250,9 +265,12 @@ export function usePostDetail(id: string | undefined) {
     if (!post || !isMyPost) return;
     try {
       const newResolved = !post.resolved;
+      // resolvedTs(サーバーの時刻)が自動削除の起点になる(v1.4.1)。
+      // ルールは、解決から7日経った投稿しか投稿者以外に消させない
       await updateDoc(doc(db, "posts", post.id), {
         resolved: newResolved,
         resolvedAt: newResolved ? new Date().toISOString() : null,
+        resolvedTs: newResolved ? serverTimestamp() : null,
       });
       setPost({ ...post, resolved: newResolved, resolvedAt: newResolved ? new Date().toISOString() : undefined });
     } catch (e) {

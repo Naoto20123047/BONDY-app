@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, Fragment } from "react";
 import "./chatScreen.css";
-import { useChat } from "./useChat";
+import { useChat, MAX_MESSAGE_LENGTH } from "./useChat";
 import { emojiStamps, imageStamps, quickReactions } from "../../lib/stamps";
 import { useAuth } from "../../lib/AuthContext";
+import { hasOfficerRole } from "../../lib/roles";
 
 const isImageStamp = (s: string) => s.startsWith("/");
 
@@ -13,9 +14,18 @@ const isTouchDevice = () =>
   window.matchMedia("(pointer: coarse)").matches;
 
 export default function ChatScreen() {
-  const { messages, loading, sending, sendMessage, sendStamp, deleteMessage, toggleReaction } =
-    useChat();
+  const {
+    messages,
+    loading,
+    sending,
+    sendMessage,
+    sendStamp,
+    deleteMessage,
+    setMessageHidden,
+    toggleReaction,
+  } = useChat();
   const { member, memberMap } = useAuth();
+  const isOfficer = hasOfficerRole(member);
   const [text, setText] = useState("");
   const [showStamps, setShowStamps] = useState(false);
   const [reactionTarget, setReactionTarget] = useState<string | null>(null);
@@ -155,6 +165,16 @@ export default function ChatScreen() {
     setReactionExpanded(false);
   };
 
+  // 幹部による非表示・解除(v1.4.1)。非表示は元に戻せるので確認は軽くする
+  const handleHideToggle = async (messageId: string, hide: boolean) => {
+    setReactionTarget(null);
+    setReactionExpanded(false);
+    if (hide && !window.confirm("このメッセージを部員から見えないようにします。よろしいですか?")) {
+      return;
+    }
+    await setMessageHidden(messageId, hide);
+  };
+
   // 取り消しは確認モーダルを挟む。一度取り消すと元に戻せないため
   const handleDeleteRequest = (messageId: string) => {
     setReactionTarget(null);
@@ -222,6 +242,11 @@ export default function ChatScreen() {
                           <i className="ti ti-ban" />
                           <span>このメッセージは取り消されました</span>
                         </div>
+                      ) : m.hidden && !isOfficer ? (
+                        <div className="chat-bubble deleted">
+                          <i className="ti ti-eye-off" />
+                          <span>このメッセージは幹部により非表示になりました</span>
+                        </div>
                       ) : m.type === "stamp" ? (
                         isImageStamp(m.stamp) ? (
                           <img className="chat-stamp-img" src={m.stamp} alt="スタンプ" />
@@ -229,11 +254,19 @@ export default function ChatScreen() {
                           <span className="chat-stamp-emoji">{m.stamp}</span>
                         )
                       ) : (
-                        <div className="chat-bubble">{m.text}</div>
+                        <div className={`chat-bubble ${m.hidden ? "hidden-by-officer" : ""}`}>
+                          {m.text}
+                        </div>
                       )}
                     </div>
                     <span className="chat-msg-time">{formatTime(m.createdAt)}</span>
                   </div>
+                  {/* 幹部には、非表示にしたメッセージの本文も見えている。その旨を添える */}
+                  {m.hidden && isOfficer && !m.deleted && (
+                    <span className="chat-msg-hidden-note">
+                      <i className="ti ti-eye-off" /> 非表示中(部員には本文が見えていません)
+                    </span>
+                  )}
 
                   {reactionEntries.length > 0 && !m.deleted && (
                     <div className="chat-reactions">
@@ -294,6 +327,17 @@ export default function ChatScreen() {
                               aria-label="取り消す"
                             >
                               <i className="ti ti-trash" />
+                            </button>
+                          )}
+                          {/* 幹部は不適切なメッセージを非表示にできる(v1.4.1) */}
+                          {isOfficer && (
+                            <button
+                              className="chat-msg-delete"
+                              onClick={() => handleHideToggle(m.id, !m.hidden)}
+                              aria-label={m.hidden ? "非表示を解除する" : "非表示にする"}
+                              title={m.hidden ? "非表示を解除する" : "非表示にする"}
+                            >
+                              <i className={`ti ${m.hidden ? "ti-eye" : "ti-eye-off"}`} />
                             </button>
                           )}
                         </>
@@ -377,6 +421,7 @@ export default function ChatScreen() {
           onKeyDown={handleKeyDown}
           onFocus={() => setShowStamps(false)}
           rows={1}
+          maxLength={MAX_MESSAGE_LENGTH}
         />
         <button
           className="chat-send"
@@ -528,4 +573,4 @@ export default function ChatScreen() {
       })()}
     </div>
   );
-}
+}

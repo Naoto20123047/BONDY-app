@@ -5,8 +5,6 @@ import { auth, db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 import { PART_OPTIONS, togglePart } from "../../lib/parts";
 import { currentFiscalYear } from "../../lib/grade";
-import { fetchOfficerIdsAsPending } from "../../lib/members";
-import { createNotifications } from "../../lib/notify";
 import type { MemberCategory } from "../../Types/types";
 import "./profileSetupScreen.css";
 import { todayString } from "../../lib/date";
@@ -120,25 +118,17 @@ export default function ProfileSetupScreen({ onBack }: ProfileSetupScreenProps) 
         joinedAt: todayString(),
       });
 
-      // 教員・OBは、幹部に確認を依頼する通知を送る(失敗しても登録は成立させる)
-      if (!isStudent) {
-        try {
-          const officerIds = await fetchOfficerIdsAsPending();
-          await createNotifications(
-            officerIds,
-            "approval_needed",
-            `${name.trim()}さん(${category})が新しく登録しました。確認してください`,
-            "/admin/approvals/members"
-          );
-        } catch (e) {
-          console.error("幹部への通知に失敗しました", e);
-        }
-      }
+      // 教員・OBの登録は、幹部の管理画面とホームに「確認待ち」の人数として出る。
+      // v1.4.1: 以前はここで幹部に通知を送っていたが、そのために確認待ちの人が
+      // 幹部の名簿(メールアドレス・学籍番号など)を読めてしまっていたのでやめた
 
       await refreshMember();
     } catch (e) {
       console.error("プロフィール登録に失敗しました", e);
-      setError("登録に失敗しました。時間をおいて再度お試しください。");
+      setError(
+        "登録できませんでした。時間をおいて再度お試しください。" +
+          "以前にこのアカウントで登録していた場合は、幹部に連絡してください。"
+      );
     } finally {
       setSaving(false);
     }

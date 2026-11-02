@@ -138,26 +138,36 @@ describe("教員・OBの登録", () => {
       )
     );
   });
-  it("確認待ちの人は名簿・チャットを読めないが、紹介ページと幹部の一覧は読める", async () => {
+  it("確認待ちの人は名簿・チャットを読めないが、紹介ページは読める", async () => {
     const db = as("teacher", "t@example.com");
     await assertFails(getDocs(collection(db, "members")));
     await assertFails(getDocs(collection(db, "messages")));
     await assertSucceeds(getDoc(doc(db, "pages", "intro")));
-    await assertSucceeds(
+    // v1.4.1: 幹部の一覧も読めない(幹部の個人情報がまるごと読めてしまっていたため)
+    await assertFails(
       getDocs(
         query(collection(db, "members"), where("status", "==", "active"), where("role", "==", "幹部"))
       )
     );
   });
-  it("確認待ちの人は幹部にだけ承認依頼の通知を作れる", async () => {
+  it("確認待ちの人は通知を作れない(v1.4.1)", async () => {
     const db = as("teacher", "t@example.com");
-    const n = { type: "approval_needed", message: "m", link: "/admin", read: false, createdAt: "x" };
-    await assertSucceeds(setDoc(doc(db, "notifications", "n1"), { ...n, targetMemberId: "o1" }));
+    const n = {
+      type: "approval_needed",
+      message: "m",
+      link: "/admin",
+      read: false,
+      createdAt: "x",
+      createdBy: "teacher",
+    };
+    await assertFails(setDoc(doc(db, "notifications", "n1"), { ...n, targetMemberId: "o1" }));
     await assertFails(setDoc(doc(db, "notifications", "n2"), { ...n, targetMemberId: "alice" }));
   });
   it("幹部は承認できる", async () => {
     await assertSucceeds(updateDoc(doc(as("o1"), "members", "teacher"), { approved: true }));
-    await assertSucceeds(getDocs(collection(as("teacher", "t@example.com"), "members")));
+    await assertSucceeds(
+      getDocs(query(collection(as("teacher", "t@example.com"), "members"), where("status", "==", "active")))
+    );
   });
   it("本人が自分を承認することはできない", async () => {
     await assertFails(updateDoc(doc(as("teacher", "t@example.com"), "members", "teacher"), { approved: true }));
@@ -170,7 +180,11 @@ describe("メールアドレスの変更", () => {
     await assertFails(updateDoc(doc(as("bob"), "members", "bob"), { email: "other@example.com" }));
   });
   it("外部のアドレスに変えた後もログインして使える", async () => {
-    await assertSucceeds(getDocs(collection(as("alice", "alice@example.com", true), "members")));
+    await assertSucceeds(
+      getDocs(
+        query(collection(as("alice", "alice@example.com", true), "members"), where("status", "==", "active"))
+      )
+    );
   });
 });
 

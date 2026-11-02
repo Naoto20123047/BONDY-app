@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-bondy \"vitest run tests/rules\"",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-bondy \"vitest run tests/rules --no-file-parallelism\"",
     "test": "npm run test:rules"
   },
   "dependencies": {

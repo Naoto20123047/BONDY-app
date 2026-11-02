@@ -7,7 +7,17 @@
  *
  * 読み取りは「呼び出し元の ID トークン」で行う。サービスアカウントを使わないので、
  * Worker が Firestore を素通しで読める状態にはならず、セキュリティルールがそのまま効く。
+ *
+ * v1.4.1: アプリから App Check のトークンを受け取った場合は、それも Firestore に渡す。
+ * Firebase コンソールで App Check を「強制」にしても、Worker からの読み取りが通るようにするため。
  */
+
+/** Firestore を呼び出した人として読むときのヘッダ */
+export function callerHeaders(idToken: string, appCheckToken?: string | null): Record<string, string> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${idToken}` };
+  if (appCheckToken) headers["X-Firebase-AppCheck"] = appCheckToken;
+  return headers;
+}
 
 export interface MemberInfo {
   uid: string;
@@ -43,14 +53,15 @@ interface FirestoreDocument {
 export async function fetchMyMember(
   idToken: string,
   uid: string,
-  projectId: string
+  projectId: string,
+  appCheckToken?: string | null
 ): Promise<MemberInfo | null> {
   const url =
     `https://firestore.googleapis.com/v1/projects/${projectId}` +
     `/databases/(default)/documents/members/${encodeURIComponent(uid)}`;
 
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${idToken}` },
+    headers: callerHeaders(idToken, appCheckToken),
   });
 
   if (!response.ok) {
@@ -121,13 +132,14 @@ export async function fetchDocAsCaller(
   idToken: string,
   projectId: string,
   collection: string,
-  id: string
+  id: string,
+  appCheckToken?: string | null
 ): Promise<Record<string, unknown> | null> {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return null;
   const url =
     `https://firestore.googleapis.com/v1/projects/${projectId}` +
     `/databases/(default)/documents/${collection}/${encodeURIComponent(id)}`;
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
+  const response = await fetch(url, { headers: callerHeaders(idToken, appCheckToken) });
   if (!response.ok) return null;
   const doc = (await response.json()) as FirestoreDocument;
   const out: Record<string, unknown> = {};

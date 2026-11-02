@@ -64,6 +64,7 @@ export default function CreatePostScreen() {
               onChange={(e) => setBody(e.target.value)}
               placeholder="詳しい内容を書いてください"
               rows={8}
+              maxLength={5000}
             />
           </div>
 

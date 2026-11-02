@@ -4,7 +4,7 @@ import { useRoleApprovals } from "./useRoleApprovals";
 
 export default function RoleApprovalsScreen() {
   const navigate = useNavigate();
-  const { requests, loading, approve, reject, hasApproved, isProposer } =
+  const { requests, loading, approve, reject, hasApproved, isProposer, isTarget, waitNote } =
     useRoleApprovals();
 
   if (loading) {
@@ -18,6 +18,8 @@ export default function RoleApprovalsScreen() {
       </button>
 
       <h2 className="role-approvals-title">ロール承認</h2>
+
+      {waitNote && <p className="role-approval-note">{waitNote}</p>}
 
       {requests.length === 0 ? (
         <p className="role-approvals-empty">承認待ちの申請はありません</p>
@@ -50,16 +52,23 @@ export default function RoleApprovalsScreen() {
                   <button
                     className="role-approval-approve"
                     onClick={() => approve(r.id)}
+                    disabled={waitNote !== null}
                   >
                     承認する
                   </button>
                 )}
-                <button
-                  className="role-approval-reject"
-                  onClick={() => reject(r.id)}
-                >
-                  却下
-                </button>
+                {/* 申請の対象者は却下できない(v1.4.1) */}
+                {isTarget(r) ? (
+                  <span className="role-approval-note">あなたが対象の申請です</span>
+                ) : (
+                  <button
+                    className="role-approval-reject"
+                    onClick={() => reject(r.id)}
+                    disabled={waitNote !== null}
+                  >
+                    却下
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -67,4 +76,4 @@ export default function RoleApprovalsScreen() {
       )}
     </div>
   );
-}
+}

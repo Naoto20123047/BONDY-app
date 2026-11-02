@@ -14,6 +14,12 @@
  *   equipment … 機材の登録。幹部だけ
  *
  * 同じ対象への通知は1回だけにする(KV に送信済みの印を残す)。
+ *
+ * v1.4.1: 利用者が入力した文字(タイトル・分類・バンド名・氏名・機材名)は
+ * teamsText() を通してから文面に入れる。以前はそのまま流していたため、
+ *  - タイトルに改行を入れて「投稿者: サークル長さん」のような偽の行を足せた
+ *  - Teams のカードはリンクの書き方([表示文字](URL))を解釈するので、
+ *    公式の通知の中に外部サイトへのリンクを置けた
  */
 
 import { fetchDocAsCaller, isOfficer, type MemberInfo } from "./firestore";
@@ -30,12 +36,56 @@ const FRESH_MINUTES = 30;
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/** 利用者が入力した文字を入れるときの長さの上限 */
+const MAX_USER_TEXT = 80;
+
+/**
+ * Markdown として意味を持つ記号を、同じ見た目の全角の文字に置き換える。
+ * Adaptive Card の TextBlock は Markdown の一部(太字・斜体・リンク・箇条書き)を解釈するが、
+ * バックスラッシュでの打ち消しが効くかはクライアントによって違うため、置き換えで確実に止める
+ */
+const MARKDOWN_REPLACEMENTS: Record<string, string> = {
+  "[": "［",
+  "]": "］",
+  "(": "（",
+  ")": "）",
+  "*": "＊",
+  _: "＿",
+  "~": "～",
+  "#": "＃",
+  ">": "＞",
+  "<": "＜",
+  "`": "｀",
+  "\\": "＼",
+  "|": "｜",
+};
+
+/**
+ * 利用者が入力した文字を、Teams の文面に入れられる形にする(v1.4.1)。
+ *  - 改行・タブなどの制御文字を空白にする(偽の行を足させない)
+ *  - Markdown の記号を全角に置き換える(リンクや装飾を作らせない)
+ *  - URL がリンクとして扱われないよう「://」を崩す
+ *  - 80文字で切る
+ */
+export function teamsText(value: unknown, max = MAX_USER_TEXT): string {
+  const text = str(value)
+    // 改行・タブ・その他の制御文字(\u2028 などの行区切りを含む)
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ")
+    .replace(/[[\]()*_~#><`\\|]/g, (c) => MARKDOWN_REPLACEMENTS[c] ?? c)
+    .replace(/:\/\//g, "：//")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
 /** フォーム種別の表示名(アプリの lib/formLabel.ts と同じ) */
 const formTypeLabel = (type: string): string =>
   type === "イベント" ? "バンドフォーム" : "個別アンケート";
 
 export interface ComposeContext {
   idToken: string;
+  /** App Check のトークン(v1.4.1。アプリが送ってきたときだけ) */
+  appCheckToken?: string | null;
   projectId: string;
   appOrigin: string;
   caller: { uid: string; member: MemberInfo | null };
@@ -60,7 +110,7 @@ export async function composeTeamsText(
   ctx: ComposeContext
 ): Promise<ComposeResult> {
   const read = (collection: string, docId: string) =>
-    fetchDocAsCaller(ctx.idToken, ctx.projectId, collection, docId);
+    fetchDocAsCaller(ctx.idToken, ctx.projectId, collection, docId, ctx.appCheckToken);
 
   if (type === "post") {
     const post = await read("posts", id);
@@ -73,9 +123,9 @@ export async function composeTeamsText(
     return {
       ok: true,
       text: [
-        `【掲示板】${str(post.category)}`,
-        `「${str(post.title)}」`,
-        `投稿者: ${str(author?.name) || "メンバー"}さん`,
+        `【掲示板】${teamsText(post.category, 20)}`,
+        `「${teamsText(post.title)}」`,
+        `投稿者: ${teamsText(author?.name, 40) || "メンバー"}さん`,
         `${ctx.appOrigin}/board/${id}`,
       ].join("\n"),
     };
@@ -89,8 +139,8 @@ export async function composeTeamsText(
       ok: true,
       text: [
         `【フォーム】${formTypeLabel(str(form.type))}`,
-        `「${str(form.title)}」`,
-        `締切: ${str(form.deadline)}`,
+        `「${teamsText(form.title)}」`,
+        `締切: ${teamsText(form.deadline, 20)}`,
         `${ctx.appOrigin}/forms/${id}`,
       ].join("\n"),
     };
@@ -105,13 +155,13 @@ export async function composeTeamsText(
     const names: string[] = [];
     for (const memberId of memberIds.slice(0, 12)) {
       const m = await read("members", memberId);
-      names.push(str(m?.name) || "メンバー");
+      names.push(teamsText(m?.name, 40) || "メンバー");
     }
     return {
       ok: true,
       text: [
         "【バンド】結成が申請されました",
-        `「${str(band.name)}」`,
+        `「${teamsText(band.name)}」`,
         `メンバー: ${names.join("、")}`,
         `${ctx.appOrigin}/bands`,
       ].join("\n"),
@@ -126,8 +176,8 @@ export async function composeTeamsText(
     ok: true,
     text: [
       "【機材】新しい機材が登録されました",
-      `「${str(equipment.name)}」${Number(equipment.totalQuantity) || 0}点`,
-      `分類: ${str(equipment.category)}`,
+      `「${teamsText(equipment.name)}」${Number(equipment.totalQuantity) || 0}点`,
+      `分類: ${teamsText(equipment.category, 20)}`,
       `${ctx.appOrigin}/equipment`,
     ].join("\n"),
   };

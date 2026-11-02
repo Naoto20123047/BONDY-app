@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { collection, addDoc } from "firebase/firestore";
+import { endOfDayJstMillis } from "../../lib/date";
 import { db } from "../../lib/firebase";
 import { fetchActiveMembers } from "../../lib/members";
 import { createNotifications } from "../../lib/notify";
@@ -180,6 +181,8 @@ export function useCreateForm() {
         type,
         title: title.trim(),
         deadline,
+        // 締切日の終わり(日本時間)のミリ秒。ルールが締切後の回答を弾くのに使う(v1.4.1)
+        closesAt: endOfDayJstMillis(deadline),
         questions: cleanedQuestions,
       });
 
@@ -223,4 +226,4 @@ export function useCreateForm() {
     saving,
     save,
   } as const;
-}
+}

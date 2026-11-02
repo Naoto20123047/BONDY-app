@@ -45,3 +45,34 @@ export function hasOfficerRole(
 ): boolean {
   return isOfficerRole(member?.role);
 }
+
+/**
+ * 幹部に昇格してから、役職変更の申請・承認・却下に加われるまでの日数(v1.4.1)。
+ *
+ * 昇格は幹部1人で即時に反映できる。そのままでは、味方を2人昇格させて
+ * その場で「3名の承認」をそろえ、解任や役職の付与を自由に通せてしまう。
+ * 昇格は即時のまま、昇格直後の一定期間は承認に加われないようにした。
+ *
+ * **firestore.rules の canJoinRoleDecisions() と必ず揃えること。**
+ * ここは画面の案内に使うだけで、守りはルール側にある。
+ */
+export const ROLE_DECISION_WAIT_DAYS = 14;
+
+/**
+ * 役職変更の申請・承認・却下に加われるようになる時刻(ミリ秒)。
+ * 昇格の記録が無い(v1.4.1 より前からの)幹部は 0 を返す(すぐ加われる)。
+ */
+export function roleDecisionAvailableAt(
+  member: Pick<Member, "promotedAt"> | null | undefined
+): number {
+  const promotedAt = member?.promotedAt;
+  if (!promotedAt || typeof promotedAt.toMillis !== "function") return 0;
+  return promotedAt.toMillis() + ROLE_DECISION_WAIT_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/** 今、役職変更の申請・承認・却下に加われるか(画面の案内用) */
+export function canJoinRoleDecisions(
+  member: Pick<Member, "role" | "promotedAt"> | null | undefined
+): boolean {
+  return hasOfficerRole(member) && Date.now() > roleDecisionAvailableAt(member);
+}

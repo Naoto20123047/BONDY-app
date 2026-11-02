@@ -16,6 +16,14 @@ rules_version = '2';
 //  Firebase の設定値は公開情報で、ブラウザから SDK を直接呼べば画面を通らずに
 //  読み書きできるため。「URLを知られないこと」も守りの前提にしない。
 //
+// v1.4.1 の考え方(セキュリティ監査 v1.4.0 の修正)
+//  - 書き込みは「どの項目を」「どの型で」「どの長さまで」を確かめる。
+//    型を確かめないと、文字列のはずの項目にオブジェクトを入れられ、
+//    それを表示した全員の画面が止まる
+//  - 作成時は全項目を、更新時は変える項目だけを確かめる(古いデータに無い項目で
+//    関係ない更新まで弾かないため)。無い項目は get(項目, 既定値) で扱う
+//  - 役職の変更は「申請 → 承認 → 反映」を1回のバッチで行い、申請を使い切りにする
+//
 // 読み取り回数について
 //  memberData() は get() を1回消費する。クエリ(list)に対するルール評価は
 //  クエリ単位で1回なので、1画面あたり数回程度に収まる。
@@ -67,6 +75,17 @@ service cloud.firestore {
       return isActive() && memberData().role == '幹部';
     }
 
+    // 役職変更の申請・承認・却下に加われるか(v1.4.1)。
+    // 幹部に昇格してから14日間は加われない。幹部1人が味方を昇格させて
+    // その場で「3名の承認」をそろえることを防ぐため。
+    // promotedAt を持たない(v1.4.1 より前からの)幹部は制限しない。
+    // 期間を変えるときは lib/roles.ts の ROLE_DECISION_WAIT_DAYS も合わせること
+    function canJoinRoleDecisions() {
+      return isOfficer()
+             && request.time > memberData().get('promotedAt', timestamp.value(0))
+                               + duration.value(14, 'd');
+    }
+
     // メールアドレスの確認が済んでいるか
     function isVerifiedEmail() {
       return isSignedIn() && request.auth.token.email_verified == true;
@@ -91,6 +110,84 @@ service cloud.firestore {
 
     function docPath(coll, id) {
       return /databases/$(database)/documents/$(coll)/$(id);
+    }
+
+    // 文字列で、長さが max 以下か(空でもよい)
+    function isStr(value, max) {
+      return value is string && value.size() <= max;
+    }
+
+    // 空でない文字列で、長さが max 以下か
+    function isText(value, max) {
+      return value is string && value.size() > 0 && value.size() <= max;
+    }
+
+    // YYYY-MM-DD の日付
+    function isDateStr(value) {
+      return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    // ---------------------------------------------------------------------
+    // 作成日時の確認(v1.4.1)
+    //
+    // 投稿・コメント・チャットの createdAt は、画面の並び順と Teams 通知の
+    // 「新しい投稿か」の判定に使う。自由に入れられると、常に一番上に出したり、
+    // 古い日付で通知の判定をすり抜けたりできる。
+    //
+    // 型をタイムスタンプに変えると、既存データ(文字列)との並び替えや表示を
+    // すべて直す必要があるため、文字列(new Date().toISOString() の形)のまま、
+    // サーバーの時刻との差が15分以内であることを確かめる。
+    // 端末の時計が15分以上ずれていると書き込めないので、その場合は時刻合わせを案内する。
+    // ---------------------------------------------------------------------
+    function isoToTimestamp(s) {
+      let parts = s.split('T');
+      let d = parts[0].split('-');
+      let t = parts[1].split(':');
+      return timestamp.date(int(d[0]), int(d[1]), int(d[2]))
+             + duration.value(int(t[0]) * 3600 + int(t[1]) * 60
+                              + int(t[2].replace('[.].*|Z', '')), 's');
+    }
+
+    function isNowIso(value) {
+      return value is string
+             && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{1,3})?Z$')
+             && isoToTimestamp(value) > request.time - duration.value(15, 'm')
+             && isoToTimestamp(value) < request.time + duration.value(15, 'm');
+    }
+
+    // ---------------------------------------------------------------------
+    // バンドのメンバー
+    //
+    // バンドは members({memberId, part} の配列。画面に出す)と
+    // memberIds(IDだけの配列。ルールの判定に使う)を持つ。
+    // v1.4.1: 2つの中身が1件ずつ一致していることを確かめる。
+    // 以前は件数しか見ておらず、memberIds だけを別人に差し替えて
+    // 「名簿に出ない隠れメンバー」を作れた。
+    // ルールには繰り返しが無いので、上限の15人分を書き並べている。
+    // 上限を変えるときは lib/bands.ts の MAX_BAND_MEMBERS も合わせること
+    // ---------------------------------------------------------------------
+    function bandMemberAt(d, i) {
+      return d.members.size() <= i
+             || (d.members[i] is map
+                 && d.members[i].keys().hasOnly(['memberId', 'part'])
+                 && d.members[i].memberId is string
+                 && d.members[i].memberId == d.memberIds[i]
+                 && isStr(d.members[i].part, 30));
+    }
+
+    function bandShapeOk() {
+      let d = request.resource.data;
+      return isText(d.name, 50)
+             && d.status in ['申請中', '承認済み', '解散申請中', '解散']
+             && d.members is list
+             && d.memberIds is list
+             && d.members.size() == d.memberIds.size()
+             && d.members.size() <= 15
+             && bandMemberAt(d, 0) && bandMemberAt(d, 1) && bandMemberAt(d, 2)
+             && bandMemberAt(d, 3) && bandMemberAt(d, 4) && bandMemberAt(d, 5)
+             && bandMemberAt(d, 6) && bandMemberAt(d, 7) && bandMemberAt(d, 8)
+             && bandMemberAt(d, 9) && bandMemberAt(d, 10) && bandMemberAt(d, 11)
+             && bandMemberAt(d, 12) && bandMemberAt(d, 13) && bandMemberAt(d, 14);
     }
 
     // そのバンドのメンバーか。判定には members ではなく memberIds(IDだけの配列)を使う。
@@ -140,7 +237,19 @@ service cloud.firestore {
     // ルールでは「変わったキー」を取り出せないため、アプリはリアクションを
     // 押すたびに押した絵文字を lastReactionKey に書き、ここでそれ以外の
     // キーが変わっていないことを確かめる。
+    //
+    // v1.4.1: 押せるのはアプリの一覧(lib/stamps.ts の emojiStamps)にある絵文字と、
+    // public/stamps/ の画像スタンプだけ。以前は40文字までの任意の言葉を入れられた。
+    // 絵文字の一覧を変えたらここも合わせること
     // ---------------------------------------------------------------------
+    function isReactionEmoji(key) {
+      return key.matches('^/stamps/[A-Za-z0-9_-]+[.]png$')
+             || key in ['🎸', '🥁', '🎤', '🎹', '🎧', '🎶',
+                     '👍', '👏', '🙌', '🔥', '💯', '✨',
+                     '😄', '😂', '🥹', '😭', '😳', '🥳',
+                     '🎉', '❤️', '🙏', '💪', '👀', '🆗'];
+    }
+
     function isOwnReactionToggle() {
       let key = request.resource.data.lastReactionKey;
       let before = resource.data.get('reactions', {});
@@ -148,7 +257,7 @@ service cloud.firestore {
       let b = before.get(key, []);
       let a = after.get(key, []);
       return changedOnly(['reactions', 'lastReactionKey'])
-             && key is string && key.size() > 0 && key.size() <= 40
+             && key is string && isReactionEmoji(key)
              && after.diff(before).affectedKeys().hasOnly([key])
              && (
                   (!(request.auth.uid in b) && a == b.concat([request.auth.uid]))
@@ -166,27 +275,72 @@ service cloud.firestore {
       return !('avatarThumb' in request.resource.data)
              || request.resource.data.avatarThumb == null
              || (request.resource.data.avatarThumb is string
-                 && request.resource.data.avatarThumb.matches('^data:image/.*')
+                 && request.resource.data.avatarThumb.matches('^data:image/(jpeg|webp|png);base64,.*')
                  && request.resource.data.avatarThumb.size() <= 20000);
     }
 
-    // 役職変更の申請(roleChangeRequests)が承認済みで、
-    // この更新がその申請の内容どおりか
-    function isApprovedRoleChange(memberId) {
+    // 新規登録の項目と型(v1.4.1)。決まった項目以外は足せない
+    function memberCreateShapeOk() {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+               'uid', 'email', 'authMethod', 'name', 'nickname', 'category',
+               'faculty', 'studentId', 'enrollmentYear', 'graduationYear', 'parts',
+               'role', 'positions', 'isOB', 'duesPaid', 'status', 'approved', 'joinedAt'
+             ])
+             && d.authMethod in ['email', 'google']
+             && isText(d.name, 50)
+             && isStr(d.get('nickname', ''), 20)
+             && isStr(d.get('faculty', ''), 30)
+             && isStr(d.get('studentId', ''), 20)
+             && d.get('enrollmentYear', 0) is int
+             && d.get('graduationYear', 0) is int
+             && d.parts is list && d.parts.size() <= 10
+             && d.positions is list && d.positions.size() == 0
+             && d.isOB is bool
+             && d.duesPaid == false
+             && isDateStr(d.joinedAt);
+    }
+
+    // 本人がプロフィール編集で変える項目の型(v1.4.1)
+    function profileShapeOk() {
+      let d = request.resource.data;
+      return d.get('parts', []) is list && d.get('parts', []).size() <= 10
+             && isStr(d.get('nickname', ''), 20)
+             && isStr(d.get('avatarColor', ''), 20)
+             && isStr(d.get('avatarImageId', ''), 128)
+             && isValidAvatarThumb();
+    }
+
+    // 役職変更の申請(roleChangeRequests)を、このバッチで反映しているか。
+    //
+    // v1.4.1: 申請は「最後の承認」と「反映」を1回のバッチで行い、同時に申請を
+    // applied にする(使い切り)。以前は approved のまま残り、何度でも使い回せた。
+    //  - 変更前の申請が pending で、このバッチの後に applied になっていること
+    //  - 承認の数がそろっているかは、申請側のルールが確かめる(同じバッチで両方を通す)
+    // approved のまま残っている古い申請は、反映には使えない
+    function isAppliedRoleChange(memberId) {
       let reqId = request.resource.data.appliedRequestId;
-      let req = get(docPath('roleChangeRequests', reqId)).data;
+      let reqPath = docPath('roleChangeRequests', reqId);
+      let req = get(reqPath).data;
       let before = resource.data.get('positions', []);
       let after = request.resource.data.get('positions', []);
       return reqId is string
-             && exists(docPath('roleChangeRequests', reqId))
-             && req.status == 'approved'
+             && exists(reqPath)
+             && req.status == 'pending'
+             && getAfter(reqPath).data.status == 'applied'
              && changedOnly(['role', 'positions', 'appliedRequestId'])
              && (
                   // 役職の付与(対象者本人): 指定された役職を1つ足すだけ
                   (req.type == 'assign_position' && req.targetMemberId == memberId
                    && request.resource.data.role == resource.data.role
+                   && !(req.position in before)
                    && after.hasAll(before) && after.removeAll(before) == [req.position]
                    && after.size() == before.size() + 1)
+                  // 役職の付与(対象者本人): すでに持っている場合は、申請の記録だけを残す
+                  || (req.type == 'assign_position' && req.targetMemberId == memberId
+                      && request.resource.data.role == resource.data.role
+                      && req.position in before
+                      && after == before)
                   // 排他の役職(サークル長など)を、前の担当者から外す
                   || (req.type == 'assign_position' && req.targetMemberId != memberId
                       && req.position in ['サークル長', '副サークル長', '会計担当']
@@ -203,31 +357,33 @@ service cloud.firestore {
     match /members/{memberId} {
 
       // 自分のドキュメントは常に読める(ログイン直後の AuthContext.loadMember が
-      // まだ status を知らない状態で読むため。ここを閉じると起動できない)
-      allow get: if isSignedIn() && (request.auth.uid == memberId || isActive());
+      // まだ status を知らない状態で読むため。ここを閉じると起動できない)。
+      // v1.4.1: 一般メンバーが読めるのは在籍中の人だけ。退会・除籍した人は
+      // 幹部だけが読める(誰が除籍されたかが部員全員に分かってしまうため)
+      allow get: if isSignedIn()
+                 && (request.auth.uid == memberId
+                     || isOfficer()
+                     || (isActive() && resource.data.status == 'active'));
 
-      // 一覧は在籍者のみ。退会者は名簿を引けない。
-      // 確認待ちの人は、登録したことを幹部に知らせるために「幹部だけ」を引ける(v1.4.0)
-      allow list: if isActive()
-                  || (isPendingMember() && resource.data.role == '幹部'
-                      && resource.data.status == 'active');
+      // 一覧も同じ。一般メンバーは status == 'active' で絞ったクエリしか通らない。
+      // v1.4.1: 確認待ちの人が「幹部だけ」を一覧できる許可を外した。
+      // 幹部全員のメールアドレス・学籍番号まで読めてしまっていたため。
+      // 確認待ちの人数は、幹部が管理画面とホームで数える
+      allow list: if isOfficer()
+                  || (isActive() && resource.data.status == 'active');
 
       // 新規登録(プロフィール登録画面)。
       //  - 在学生: メール確認済みの大学アドレスに限る(v1.3.2)。登録してすぐ使える
       //  - 教員・OB: どのアドレスでもよいが、メール確認は必須。幹部の確認待ちで作る(v1.4.0)
+      //  - 除籍した人は登録し直せない(v1.4.1)。完全削除しても blockedUids は残る
       allow create: if isVerifiedEmail()
                     && request.auth.uid == memberId
+                    && !exists(docPath('blockedUids', request.auth.uid))
+                    && memberCreateShapeOk()
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.email == request.auth.token.email
                     && request.resource.data.status == 'active'
                     && request.resource.data.role == '一般メンバー'
-                    && request.resource.data.positions.size() == 0
-                    && request.resource.data.duesPaid == false
-                    && isValidAvatarThumb()
-                    // 完全削除された人が登録し直す場合もここを通る。
-                    // 過去の日付を入れて NEWバッジを避けることはできるが、
-                    // 実害が無いため検証はしない
-                    && request.resource.data.joinedAt is string
                     && (
                          // 在学生
                          (isVerifiedUniversityEmail()
@@ -241,22 +397,32 @@ service cloud.firestore {
                        );
 
       allow update: if
-        // 幹部: 退会処理・除籍・復帰・OB登録など。
-        // v1.3.2: 役職(role / positions)は自由に変えられない。下の2つを通す
+        // 幹部: 退会処理・除籍・復帰・OB登録・確認待ちの承認など。
+        // v1.3.2: 役職(role / positions)は自由に変えられない。下の3つを通す。
+        // v1.4.1: 在籍状態(status)を変えられるのは、相手が一般メンバーのときだけ。
+        // 幹部を外すときは、先に承認を通して降格する(幹部1人で他の幹部を締め出せないように)
         (isOfficer()
-         && unchanged(['role', 'positions', 'uid', 'appliedRequestId'])
+         && unchanged(['role', 'positions', 'uid', 'appliedRequestId', 'promotedAt', 'promotedBy'])
+         && (unchanged(['status']) || resource.data.role == '一般メンバー')
+         && request.resource.data.status in ['active', 'withdrawn', 'expelled']
+         && isText(request.resource.data.name, 50)
          && isValidAvatarThumb())
-        // 幹部: 一般メンバーを幹部に昇格(即時反映の仕様を維持)
+        // 幹部: 一般メンバーを幹部に昇格(即時反映の仕様を維持)。
+        // v1.4.1: 昇格した時刻と昇格させた人を残す。昇格から14日間は役職変更に加われない
         || (isOfficer()
-            && changedOnly(['role'])
+            && changedOnly(['role', 'promotedAt', 'promotedBy'])
             && resource.data.role == '一般メンバー'
-            && request.resource.data.role == '幹部')
-        // 幹部: 承認済みの役職変更の反映
-        || (isOfficer() && isApprovedRoleChange(memberId))
+            && resource.data.status == 'active'
+            && resource.data.get('approved', true) != false
+            && request.resource.data.role == '幹部'
+            && request.resource.data.promotedAt == request.time
+            && request.resource.data.promotedBy == request.auth.uid)
+        // 幹部: 承認された役職変更の反映(申請の最後の承認と同じバッチ)
+        || (isOfficer() && isAppliedRoleChange(memberId))
         // 本人: プロフィール編集で変更できる項目のみ
         || (isActive() && request.auth.uid == memberId
             && changedOnly(['parts', 'nickname', 'avatarColor', 'avatarImageId', 'avatarThumb'])
-            && isValidAvatarThumb())
+            && profileShapeOk())
         // 本人: ログイン用メールアドレスを変更したときの名簿の追従(v1.4.0)。
         // Auth 側で確認済みのアドレスにしか合わせられない
         || (hasMemberDoc() && request.auth.uid == memberId
@@ -278,6 +444,52 @@ service cloud.firestore {
       // 完全削除はユーザー履歴画面からのみ。在籍中の人は消せない
       allow delete: if isOfficer()
                     && resource.data.status in ['withdrawn', 'expelled'];
+    }
+
+    // ---------------------------------------------------------------------
+    // blockedUids(再登録を止める記録。v1.4.1)
+    //
+    // ドキュメントID = 除籍した人の UID。除籍(と登録の見送り)のときに幹部が作る。
+    // 名簿のドキュメントを完全削除しても残るので、除籍された人が
+    // プロフィール登録からやり直して入り直すことはできない。
+    // 除籍から戻すときは幹部が消す。
+    // ---------------------------------------------------------------------
+    match /blockedUids/{uid} {
+      allow read: if isOfficer();
+      allow create, update: if isOfficer()
+                            && uid != request.auth.uid
+                            && request.resource.data.keys().hasOnly(['blockedBy', 'blockedAt'])
+                            && request.resource.data.blockedBy == request.auth.uid
+                            && request.resource.data.blockedAt == request.time;
+      allow delete: if isOfficer();
+    }
+
+    // ---------------------------------------------------------------------
+    // auditLogs(幹部の操作の記録。v1.4.1)
+    //
+    // 除籍・復帰・登録の承認と見送り・完全削除・昇格のときに「誰が・いつ・誰に・何を」を残す。
+    // 書けるのは幹部の自分の操作だけで、書き換え・削除はできない
+    // ---------------------------------------------------------------------
+    match /auditLogs/{logId} {
+      allow read: if isOfficer();
+      allow create: if isOfficer()
+                    && request.resource.data.keys().hasOnly(['actorId', 'action', 'targetId', 'detail', 'at'])
+                    && request.resource.data.actorId == request.auth.uid
+                    && request.resource.data.action in [
+                         'expel', 'restore', 'withdraw', 'approve_member', 'decline_member',
+                         'delete_member', 'promote', 'hide_message', 'unhide_message'
+                       ]
+                    && isText(request.resource.data.targetId, 128)
+                    && isStr(request.resource.data.get('detail', ''), 200)
+                    && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // meta(アプリ全体の小さな記録。今はデータ移行の済みの印だけ。v1.4.1)
+    // ---------------------------------------------------------------------
+    match /meta/{docId} {
+      allow read, write: if isOfficer();
     }
 
     // ---------------------------------------------------------------------
@@ -308,16 +520,22 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // images(アバター画像)。ドキュメントID = そのメンバーのUID
+    //
+    // v1.4.1: 形式を JPEG・WebP・PNG に限り、上限を約100KBに下げた。
+    // 画面では圧縮と位置情報(EXIF)の除去をしてから書くが、
+    // 画面を通さずに書くと圧縮していない写真を置けたため
     // ---------------------------------------------------------------------
     match /images/{imageId} {
       allow read: if isActive();
 
       allow create, update: if isActive()
                             && request.auth.uid == imageId
+                            && request.resource.data.keys().hasOnly(['ownerId', 'dataUrl', 'updatedAt'])
                             && request.resource.data.ownerId == request.auth.uid
                             && request.resource.data.dataUrl is string
-                            && request.resource.data.dataUrl.matches('^data:image/.*')
-                            && request.resource.data.dataUrl.size() <= 400000;
+                            && request.resource.data.dataUrl.matches('^data:image/(jpeg|webp|png);base64,.*')
+                            && request.resource.data.dataUrl.size() <= 140000
+                            && isStr(request.resource.data.get('updatedAt', ''), 40);
 
       allow delete: if isActive() && (request.auth.uid == imageId || isOfficer());
     }
@@ -327,14 +545,8 @@ service cloud.firestore {
     //
     // v1.3.2: members と同じ内容の memberIds(IDだけの配列)を持たせ、
     // 「そのバンドのメンバーか」をルールで判定できるようにした。
-    // 既存のバンドへの memberIds の書き足しは、幹部が管理画面を開いたときに行う。
+    // v1.4.1: 2つの中身が1件ずつ一致していることを確かめる(bandShapeOk)
     // ---------------------------------------------------------------------
-    function bandMembersConsistent() {
-      return request.resource.data.memberIds is list
-             && request.resource.data.members is list
-             && request.resource.data.memberIds.size() == request.resource.data.members.size();
-    }
-
     match /bands/{bandId} {
       allow read: if isActive();
 
@@ -342,18 +554,18 @@ service cloud.firestore {
       allow create: if isActive()
                     && request.resource.data.status == '申請中'
                     && request.resource.data.keys().hasOnly(['name', 'members', 'memberIds', 'status'])
-                    && bandMembersConsistent()
+                    && bandShapeOk()
                     && request.auth.uid in request.resource.data.memberIds;
 
       allow update: if
         // 幹部: 結成承認・解散承認・却下による差し戻し・memberIds の書き足し
-        isOfficer()
+        (isOfficer() && bandShapeOk())
         // そのバンドのメンバー: 加入・脱退と、解散の申請のみ。
         // 「解散」にできるのは幹部だけ
         || (isActive()
             && request.auth.uid in resource.data.get('memberIds', [])
             && changedOnly(['members', 'memberIds', 'status'])
-            && bandMembersConsistent()
+            && bandShapeOk()
             && (request.resource.data.status == resource.data.status
                 || (resource.data.status == '承認済み'
                     && request.resource.data.status == '解散申請中')));
@@ -372,25 +584,70 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // formResponses(フォーム回答)
+    //
+    // v1.4.1
+    //  - 回答には formType(フォームの種類の写し)を持たせる
+    //  - 個別アンケート(アンケート)の回答は、本人と幹部だけが読める。
+    //    バンドフォーム(イベント)はバンドで1つの回答を共有して直すため、部員が読める
+    //  - 締切(forms の closesAt。締切日の 23:59:59 日本時間のミリ秒)を過ぎたら書けない
+    //  - 存在しないフォームへの回答や、種類の合わない回答は作れない
     // ---------------------------------------------------------------------
+    function formOf(formId) {
+      return get(docPath('forms', formId)).data;
+    }
+
+    // 締切前か。closesAt を持たない古いフォームは制限しない
+    function formIsOpen(formId) {
+      return request.time.toMillis() <= formOf(formId).get('closesAt', 99999999999999);
+    }
+
+    function answersOk() {
+      return request.resource.data.answers is map
+             && request.resource.data.answers.size() <= 60;
+    }
+
     match /formResponses/{responseId} {
-      // 集計画面・回答画面ともに全回答を読む必要がある
-      allow read: if isActive();
+      allow read: if isOfficer()
+                  || (isActive()
+                      && (resource.data.memberId == request.auth.uid
+                          || resource.data.formType == 'イベント'));
 
       allow create: if isActive()
+                    && request.resource.data.keys().hasOnly(
+                         ['formId', 'memberId', 'bandId', 'answers', 'submittedAt', 'formType'])
                     && request.resource.data.memberId == request.auth.uid
-                    && (request.resource.data.get('bandId', null) == null
-                        || isBandMember(request.resource.data.bandId));
+                    && request.resource.data.formId is string
+                    && exists(docPath('forms', request.resource.data.formId))
+                    && request.resource.data.formType == formOf(request.resource.data.formId).type
+                    && answersOk()
+                    && isStr(request.resource.data.submittedAt, 40)
+                    && formIsOpen(request.resource.data.formId)
+                    && (
+                         (request.resource.data.formType == 'イベント'
+                          && request.resource.data.bandId is string
+                          && isBandMember(request.resource.data.bandId))
+                         || (request.resource.data.formType != 'イベント'
+                             && !('bandId' in request.resource.data))
+                       );
 
       // v1.3.2: 回答者・フォーム・バンドは変えられない。
       // 更新できるのは回答者本人か、バンド回答ならそのバンドのメンバー。
       // 最後に編集した人は memberId ではなく lastEditedBy に残す
-      allow update: if isActive()
-                    && unchanged(['memberId', 'formId', 'bandId'])
-                    && request.resource.data.get('lastEditedBy', request.auth.uid) == request.auth.uid
-                    && (resource.data.memberId == request.auth.uid
-                        || (resource.data.get('bandId', null) != null
-                            && isBandMember(resource.data.bandId)));
+      allow update: if
+        (isActive()
+         && unchanged(['memberId', 'formId', 'bandId', 'formType'])
+         && changedOnly(['answers', 'lastEditedBy', 'submittedAt'])
+         && request.resource.data.lastEditedBy == request.auth.uid
+         && answersOk()
+         && isStr(request.resource.data.submittedAt, 40)
+         && formIsOpen(resource.data.formId)
+         && (resource.data.memberId == request.auth.uid
+             || (resource.data.get('bandId', null) != null
+                 && isBandMember(resource.data.bandId))))
+        // 既存の回答に formType を書き足す(v1.4.1 のデータ移行。幹部のみ)
+        || (isOfficer()
+            && changedOnly(['formType'])
+            && request.resource.data.formType == formOf(resource.data.formId).type);
 
       // フォーム削除時の回答一括削除
       allow delete: if isOfficer();
@@ -420,20 +677,36 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // equipmentRequests(機材貸出申請)
+    //
+    // v1.4.1: 申請の中身(台帳にある貸出できる機材か・台数・返却予定日)を確かめる。
+    // 申請者が変えられるのは「貸出中 → 返却報告済み」だけ(以前は承認前でもできた)
     // ---------------------------------------------------------------------
     match /equipmentRequests/{requestId} {
       allow read: if isActive();
 
       allow create: if isActive()
+                    && request.resource.data.keys().hasOnly(
+                         ['equipmentId', 'quantity', 'memberId', 'dueDate', 'status', 'requestedAt'])
                     && request.resource.data.memberId == request.auth.uid
-                    && request.resource.data.status == '申請中';
+                    && request.resource.data.status == '申請中'
+                    && request.resource.data.equipmentId is string
+                    && exists(docPath('equipment', request.resource.data.equipmentId))
+                    && get(docPath('equipment', request.resource.data.equipmentId)).data.get('lendable', true) != false
+                    && request.resource.data.quantity is int
+                    && request.resource.data.quantity >= 1
+                    && request.resource.data.quantity
+                         <= get(docPath('equipment', request.resource.data.equipmentId)).data.totalQuantity
+                    && isDateStr(request.resource.data.dueDate)
+                    && isDateStr(request.resource.data.requestedAt);
 
       allow update: if
         isOfficer()
         || (isActive()
             && resource.data.memberId == request.auth.uid
+            && resource.data.status == '貸出中'
             && changedOnly(['status', 'reportedAt'])
-            && request.resource.data.status == '返却報告済み');
+            && request.resource.data.status == '返却報告済み'
+            && isDateStr(request.resource.data.reportedAt));
 
       allow delete: if isOfficer();
     }
@@ -444,15 +717,30 @@ service cloud.firestore {
     // v1.3.2: Spark プランではサーバー側で通知を作れないため、ルールで絞る。
     //  - 種類は決まった値だけ。一般メンバーが作れるのは操作に伴うものだけ
     //  - 本文は200文字以内、リンクはアプリ内のパス(外部サイトへの誘導を防ぐ)
+    // v1.4.1:
+    //  - 差出人(createdBy)を必ず持たせ、画面に「○○さんから」と出す
+    //  - 一般メンバーが作れる通知は、種類ごとに宛先を絞る
+    //    (機材の申請 → 機材担当かサークル長、バンドの変更 → 幹部、コメント → 誰でも)
+    //  - 確認待ちの人は通知を作れない(幹部の名簿を読ませないため)
     // ---------------------------------------------------------------------
     function notificationShapeOk() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['targetMemberId', 'type', 'message', 'link', 'read', 'createdAt'])
-             && d.targetMemberId is string
+      return d.keys().hasOnly(['targetMemberId', 'type', 'message', 'link', 'read', 'createdAt', 'createdBy'])
+             && isText(d.targetMemberId, 128)
              && d.message is string && d.message.size() <= 200
-             && d.link is string && d.link.matches('^/[^/].*|^/$')
+             && d.link is string && d.link.size() <= 200 && d.link.matches('^/[^/].*|^/$')
              && d.read == false
-             && d.createdAt is string;
+             && isStr(d.createdAt, 40)
+             && d.createdBy == request.auth.uid;
+    }
+
+    function notificationTarget() {
+      return get(docPath('members', request.resource.data.targetMemberId)).data;
+    }
+
+    function notificationTargetIsActive() {
+      return exists(docPath('members', request.resource.data.targetMemberId))
+             && notificationTarget().status == 'active';
     }
 
     match /notifications/{notificationId} {
@@ -461,18 +749,17 @@ service cloud.firestore {
                   && resource.data.targetMemberId == request.auth.uid;
 
       allow create: if notificationShapeOk() && (
-        (isActive() && request.resource.data.type in [
-          'approval_needed', 'equipment_request', 'band_member_changed', 'post_comment'
-        ])
+        (isActive() && request.resource.data.type == 'equipment_request'
+         && notificationTargetIsActive()
+         && notificationTarget().get('positions', []).hasAny(['機材担当', 'サークル長']))
+        || (isActive() && request.resource.data.type == 'band_member_changed'
+            && notificationTargetIsActive()
+            && notificationTarget().role == '幹部')
+        || (isActive() && request.resource.data.type == 'post_comment')
         || (isOfficer() && request.resource.data.type in [
-          'form_published', 'approval_result', 'todo_assigned',
-          'equipment_result', 'equipment_overdue', 'live_update'
+          'approval_needed', 'form_published', 'approval_result', 'todo_assigned',
+          'equipment_result', 'equipment_overdue', 'live_update', 'officer_promoted'
         ])
-        // 確認待ちの人: 登録したことを幹部に知らせる(v1.4.0)
-        || (isPendingMember()
-            && request.resource.data.type == 'approval_needed'
-            && exists(docPath('members', request.resource.data.targetMemberId))
-            && get(docPath('members', request.resource.data.targetMemberId)).data.role == '幹部')
       );
 
       allow update: if (isActive() || isPendingMember())
@@ -489,34 +776,58 @@ service cloud.firestore {
     // v1.3.2: 承認の数を誤魔化せないようにした。
     //  - 作成時は必要数3、承認者は提案者1人だけ
     //  - 承認は「自分のIDを1つ足す」だけ
-    //  - approved にできるのは承認が必要数に達したときだけ
+    // v1.4.1:
+    //  - 読めるのは幹部だけ
+    //  - 最後の承認は、反映(members の書き換え)と同じバッチで applied にする。
+    //    申請は1回しか使えない
+    //  - 申請の対象者は却下できない(解任される本人が止められないように)
+    //  - 昇格から14日間の幹部は、申請・承認・却下に加われない
     // ---------------------------------------------------------------------
     match /roleChangeRequests/{requestId} {
-      allow read: if isActive();
+      allow read: if isOfficer();
 
-      allow create: if isOfficer()
+      allow create: if canJoinRoleDecisions()
+                    && request.resource.data.keys().hasOnly(
+                         ['type', 'targetMemberId', 'proposedBy', 'approvals', 'requiredApprovals',
+                          'status', 'position', 'createdAt'])
                     && request.resource.data.proposedBy == request.auth.uid
                     && request.resource.data.status == 'pending'
                     && request.resource.data.requiredApprovals == 3
                     && request.resource.data.approvals == [request.auth.uid]
-                    && request.resource.data.type in ['assign_position', 'dismiss_officer']
-                    && request.resource.data.targetMemberId is string;
+                    && isText(request.resource.data.targetMemberId, 128)
+                    && exists(docPath('members', request.resource.data.targetMemberId))
+                    && (
+                         (request.resource.data.type == 'assign_position'
+                          && request.resource.data.position in
+                               ['サークル長', '副サークル長', '会計担当', '機材担当', '広報担当'])
+                         || (request.resource.data.type == 'dismiss_officer'
+                             && get(docPath('members', request.resource.data.targetMemberId)).data.role == '幹部')
+                       );
 
-      allow update: if isOfficer()
+      allow update: if canJoinRoleDecisions()
                     && resource.data.status == 'pending'
                     && (
-                         // 承認: 自分のIDを1つ足す。必要数に達していれば approved にしてよい
-                         (changedOnly(['approvals', 'status'])
+                         // 承認(まだ必要数に届かない): 自分のIDを1つ足す
+                         (changedOnly(['approvals'])
                           && !(request.auth.uid in resource.data.approvals)
                           && request.resource.data.approvals
                                == resource.data.approvals.concat([request.auth.uid])
-                          && (request.resource.data.status == 'pending'
-                              || (request.resource.data.status == 'approved'
-                                  && request.resource.data.approvals.size()
-                                       >= resource.data.requiredApprovals)))
-                         // 却下
-                         || (changedOnly(['status'])
-                             && request.resource.data.status == 'rejected')
+                          && request.resource.data.approvals.size() < resource.data.requiredApprovals)
+                         // 最後の承認と反映: 必要数に達したら、同じバッチで対象者に反映して applied にする
+                         || (changedOnly(['approvals', 'status', 'appliedAt'])
+                             && !(request.auth.uid in resource.data.approvals)
+                             && request.resource.data.approvals
+                                  == resource.data.approvals.concat([request.auth.uid])
+                             && request.resource.data.approvals.size() >= resource.data.requiredApprovals
+                             && request.resource.data.status == 'applied'
+                             && request.resource.data.appliedAt == request.time
+                             && getAfter(docPath('members', resource.data.targetMemberId))
+                                  .data.get('appliedRequestId', '') == requestId)
+                         // 却下。対象者本人はできない
+                         || (changedOnly(['status', 'rejectedBy'])
+                             && request.resource.data.status == 'rejected'
+                             && request.resource.data.rejectedBy == request.auth.uid
+                             && resource.data.targetMemberId != request.auth.uid)
                        );
 
       // 履歴として残す
@@ -528,15 +839,24 @@ service cloud.firestore {
     //
     // v1.3.2: 匿名投稿は本体に投稿者(authorId)を持たない。
     // 投稿者は anonymousAuthors に分け、幹部と本人しか読めないようにした。
+    // v1.4.1: 分類・タイトル・本文の型と長さ、作成日時を確かめる。
+    // 解決済みの投稿を投稿者以外が消せるのは、解決から7日経ってから
     // ---------------------------------------------------------------------
+    function postShapeOk() {
+      let d = request.resource.data;
+      return d.category in ['メンバー募集', '機材', '告知・連絡', 'その他']
+             && isText(d.title, 50)
+             && isText(d.body, 5000)
+             && isNowIso(d.createdAt)
+             && d.resolved == false
+             && d.isAnonymous is bool;
+    }
+
     match /posts/{postId} {
       allow read: if isActive();
 
       allow create: if isActive()
-                    && request.resource.data.resolved == false
-                    && request.resource.data.isAnonymous is bool
-                    && request.resource.data.title is string
-                    && request.resource.data.body is string
+                    && postShapeOk()
                     && (
                          (request.resource.data.isAnonymous == false
                           && request.resource.data.keys().hasOnly(
@@ -548,19 +868,26 @@ service cloud.firestore {
                              && anonAuthorIsMeAfter(postId))
                        );
 
-      // 投稿者本人が変えてよいのは「解決済み」の切り替えだけ
+      // 投稿者本人が変えてよいのは「解決済み」の切り替えだけ。
+      // 解決にするときは、解決した時刻(resolvedTs)をサーバーの時刻で残す
       allow update: if isActive() && (
                       isOfficer()
                       || ((resource.data.get('authorId', '') == request.auth.uid || anonAuthorIsMe(postId))
-                          && changedOnly(['resolved', 'resolvedAt']))
+                          && changedOnly(['resolved', 'resolvedAt', 'resolvedTs'])
+                          && request.resource.data.resolved is bool
+                          && (request.resource.data.resolved == false
+                              || request.resource.data.resolvedTs == request.time))
                     );
 
       allow delete: if isActive()
                     && (resource.data.get('authorId', '') == request.auth.uid
                         || anonAuthorIsMe(postId)
                         || isOfficer()
-                        // 解決済み投稿の自動削除。掲示板を開いた人が実行する
-                        || resource.data.resolved == true);
+                        // 解決済み投稿の自動削除。掲示板を開いた人が実行する。
+                        // 解決から7日経ったものだけ(lib の AUTO_DELETE_DAYS と揃える)
+                        || (resource.data.resolved == true
+                            && resource.data.get('resolvedTs', null) is timestamp
+                            && request.time > resource.data.resolvedTs + duration.value(7, 'd')));
     }
 
     // ---------------------------------------------------------------------
@@ -568,28 +895,33 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     function commentBodyOk() {
       let d = request.resource.data;
-      return (d.type == 'text' && d.body is string && d.body.size() > 0)
-             || (d.type == 'stamp' && isValidStamp(d.stamp));
+      return isNowIso(d.createdAt)
+             && d.postId is string
+             && ((d.type == 'text' && isText(d.body, 1000) && !('stamp' in d))
+                 || (d.type == 'stamp' && isValidStamp(d.stamp) && !('body' in d)));
     }
 
     match /comments/{commentId} {
       allow read: if isActive();
 
       allow create: if isActive()
-                    && exists(docPath('posts', request.resource.data.postId))
                     && commentBodyOk()
+                    && exists(docPath('posts', request.resource.data.postId))
                     && (
                          // 通常のスレッド: 投稿者を本体に持つ
                          (!postIsAnonymous(request.resource.data.postId)
                           && request.resource.data.keys().hasOnly(
                                ['postId', 'authorId', 'type', 'body', 'stamp', 'createdAt'])
                           && request.resource.data.authorId == request.auth.uid)
-                         // 匿名スレッド: 投稿者は anonymousAuthors。本体には表示名(匿名A など)だけ
+                         // 匿名スレッド: 投稿者は anonymousAuthors。本体には表示名(匿名A など)だけ。
+                         // v1.4.1: 「投稿者」を名乗れるのは、そのスレッドの投稿者本人だけ
                          || (postIsAnonymous(request.resource.data.postId)
                              && request.resource.data.keys().hasOnly(
                                   ['postId', 'anonLabel', 'type', 'body', 'stamp', 'createdAt'])
                              && request.resource.data.anonLabel is string
-                             && request.resource.data.anonLabel.matches('^匿名[A-Z]{1,3}$')
+                             && (request.resource.data.anonLabel.matches('^匿名[A-Z]{1,3}$')
+                                 || (request.resource.data.anonLabel == '投稿者'
+                                     && postAuthorIsMe(request.resource.data.postId)))
                              && anonAuthorIsMeAfter(commentId))
                        );
 
@@ -652,14 +984,27 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // messages(全体チャット)
+    //
+    // v1.4.1
+    //  - 本文の型と長さ(2,000文字)、作成日時を確かめる。リアクションを付けた状態では作れない
+    //  - 幹部はメッセージを非表示にできる(hiddenBy / hiddenAt)。
+    //    データは消さないので「データは削除しない」方針と両立する
     // ---------------------------------------------------------------------
     match /messages/{messageId} {
       allow read: if isActive();
 
       allow create: if isActive()
+                    && request.resource.data.keys().hasOnly(['senderId', 'type', 'text', 'stamp', 'createdAt'])
                     && request.resource.data.senderId == request.auth.uid
-                    && (request.resource.data.get('type', 'text') != 'stamp'
-                        || isValidStamp(request.resource.data.stamp));
+                    && isNowIso(request.resource.data.createdAt)
+                    && (
+                         (request.resource.data.get('type', 'text') == 'text'
+                          && isText(request.resource.data.text, 2000)
+                          && !('stamp' in request.resource.data))
+                         || (request.resource.data.get('type', 'text') == 'stamp'
+                             && isValidStamp(request.resource.data.stamp)
+                             && !('text' in request.resource.data))
+                       );
 
       // リアクションのみ。取り消し済みのメッセージには付けられない
       allow update: if isActive()
@@ -675,6 +1020,16 @@ service cloud.firestore {
                     && request.resource.data.get('text', '') == ''
                     && request.resource.data.get('stamp', '') == '';
 
+      // 幹部による非表示と、その解除(v1.4.1)。本文やリアクションは変えられない
+      allow update: if isOfficer()
+                    && changedOnly(['hiddenBy', 'hiddenAt'])
+                    && (
+                         (request.resource.data.hiddenBy == request.auth.uid
+                          && request.resource.data.hiddenAt == request.time)
+                         || (!('hiddenBy' in request.resource.data)
+                             && !('hiddenAt' in request.resource.data))
+                       );
+
       allow delete: if false;
     }
 
@@ -689,6 +1044,7 @@ service cloud.firestore {
     // 締切は applyClosesAt / submitClosesAt(締切日の 23:59:59、ミリ秒)で判定する。
     // 締切後の差し替えは幹部ならできる(当日の資料を整えるため)。
     // 「データは削除しない」方針に従い、delete は閉じている。
+    // v1.4.1: 申し込めるのは承認済みのバンドだけ。各項目の型と長さを確かめる
     // ---------------------------------------------------------------------
     function liveData(liveId) {
       return get(docPath('lives', liveId)).data;
@@ -725,9 +1081,18 @@ service cloud.firestore {
         allow create, update: if isOfficer()
           || (isActive()
               && isBandMember(bandId)
+              && get(docPath('bands', bandId)).data.status == '承認済み'
+              && request.resource.data.keys().hasOnly(
+                   ['bandId', 'bandName', 'participate', 'desiredMinutes', 'unavailable',
+                    'note', 'updatedBy', 'updatedAt'])
               && request.resource.data.bandId == bandId
               && request.resource.data.updatedBy == request.auth.uid
               && request.resource.data.participate is bool
+              && isStr(request.resource.data.get('bandName', ''), 50)
+              && request.resource.data.get('desiredMinutes', 0) is number
+              && isStr(request.resource.data.get('unavailable', ''), 300)
+              && isStr(request.resource.data.get('note', ''), 500)
+              && isStr(request.resource.data.get('updatedAt', ''), 40)
               && request.time.toMillis() <= liveData(liveId).applyClosesAt);
         allow delete: if false;
       }
@@ -736,10 +1101,12 @@ service cloud.firestore {
         allow read: if isActive();
         allow create, update: if isOfficer()
           || (canSubmitForLive(liveId, bandId)
+              && request.resource.data.keys().hasOnly(['bandId', 'items', 'submittedAt', 'updatedBy'])
               && request.resource.data.bandId == bandId
               && request.resource.data.updatedBy == request.auth.uid
               && request.resource.data.items is list
-              && request.resource.data.items.size() <= 40);
+              && request.resource.data.items.size() <= 40
+              && isStr(request.resource.data.get('submittedAt', ''), 40));
         allow delete: if false;
       }
 
@@ -747,10 +1114,14 @@ service cloud.firestore {
         allow read: if isActive();
         allow create, update: if isOfficer()
           || (canSubmitForLive(liveId, bandId)
+              && request.resource.data.keys().hasOnly(
+                   ['bandId', 'members', 'monitorRequest', 'submittedAt', 'updatedBy'])
               && request.resource.data.bandId == bandId
               && request.resource.data.updatedBy == request.auth.uid
               && request.resource.data.members is list
-              && request.resource.data.members.size() <= 20);
+              && request.resource.data.members.size() <= 20
+              && isStr(request.resource.data.get('monitorRequest', ''), 1000)
+              && isStr(request.resource.data.get('submittedAt', ''), 40));
         allow delete: if false;
       }
     }

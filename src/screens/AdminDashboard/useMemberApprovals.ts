@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchPendingMembers } from "../../lib/members";
+import { addBlockToBatch, fetchPendingMembers } from "../../lib/members";
+import { auditLogEntry, newAuditLogRef } from "../../lib/auditLog";
 import { useAuth } from "../../lib/AuthContext";
 import { createNotification } from "../../lib/notify";
 import { disableAuthAccount, isWorkerConfigured } from "../../lib/workerClient";
@@ -39,11 +40,14 @@ export function useMemberApprovals() {
   const approve = async (target: Member) => {
     if (!me) return;
     try {
-      await updateDoc(doc(db, "members", target.id), {
+      const batch = writeBatch(db);
+      batch.update(doc(db, "members", target.id), {
         approved: true,
         approvedAt: todayString(),
         approvedBy: me.id,
       });
+      batch.set(newAuditLogRef(), auditLogEntry("approve_member", target.id, target.name));
+      await batch.commit();
       await createNotification(
         target.id,
         "approval_result",
@@ -65,10 +69,15 @@ export function useMemberApprovals() {
     );
     if (!ok) return;
     try {
-      await updateDoc(doc(db, "members", target.id), {
+      // 除籍と同じく、再登録を止める記録と操作の記録を同じバッチで書く(v1.4.1)
+      const batch = writeBatch(db);
+      batch.update(doc(db, "members", target.id), {
         status: "expelled",
         expelledAt: todayString(),
       });
+      addBlockToBatch(batch, target.id);
+      batch.set(newAuditLogRef(), auditLogEntry("decline_member", target.id, target.name));
+      await batch.commit();
       if (isWorkerConfigured()) {
         try {
           await disableAuthAccount(target.id);

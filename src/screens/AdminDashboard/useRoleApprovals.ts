@@ -1,8 +1,19 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, query, where, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+  serverTimestamp,
+  writeBatch,
+} from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { fetchAllMembers } from "../../lib/members";
-import { fetchMemberNameMap } from "../../lib/members";
+import { fetchAllMembers, fetchMemberNameMap, FORMER_MEMBER_LABEL } from "../../lib/members";
+import { canJoinRoleDecisions, roleDecisionAvailableAt } from "../../lib/roles";
 import { useAuth } from "../../lib/AuthContext";
 import type { Position, RoleChangeRequest } from "../../Types/types";
 import { createNotification } from "../../lib/notify";
@@ -42,8 +53,8 @@ export function useRoleApprovals() {
       setRequests(
         raw.map((r) => ({
           ...r,
-          targetName: nameMap[r.targetMemberId] ?? "不明",
-          proposerName: nameMap[r.proposedBy] ?? "不明",
+          targetName: nameMap[r.targetMemberId] ?? FORMER_MEMBER_LABEL,
+          proposerName: nameMap[r.proposedBy] ?? FORMER_MEMBER_LABEL,
           typeLabel:
             r.type === "assign_position" && r.position
               ? `「${r.position}」の付与`
@@ -62,15 +73,28 @@ export function useRoleApprovals() {
   }, []);
 
   /**
-   * 申請が成立したときに、実際の役職変更を反映する。
+   * 最後の承認と、役職変更の反映を1回のバッチで行う(v1.4.1)。
    *
-   * v1.3.2 から、幹部でも Member の role / positions を自由には変えられない。
-   * 反映する申請のID(appliedRequestId)を一緒に書き込み、ルールが
-   * 「その申請が承認済みで、内容どおりの変更か」を確かめる。
-   * そのため、**申請を approved にしてから**ここを呼ぶこと。
+   * 以前は「申請を approved にする → 別の書き込みで反映する」の2段階で、
+   * approved の申請がそのまま残ったため、同じ申請を何度でも反映し直せた
+   * (外された人を、昔の申請でもう一度サークル長に戻す、など)。
+   *
+   * 今は次をまとめて書き、ルールが「同じバッチで申請が applied になっていること」を確かめる。
+   *  - 申請: 自分の承認を足し、status を applied にする
+   *  - 対象者: 役職を変え、appliedRequestId にこの申請のIDを書く
+   *  - 排他の役職なら、前の担当者から外す
+   * どれか1つでもルールに弾かれると、全部が書かれない(承認も残らない)。
    */
-  const executeChange = async (req: RoleRequestView) => {
+  const approveAndApply = async (req: RoleRequestView, approverId: string) => {
+    const batch = writeBatch(db);
     const targetRef = doc(db, "members", req.targetMemberId);
+
+    batch.update(doc(db, "roleChangeRequests", req.id), {
+      approvals: arrayUnion(approverId),
+      status: "applied",
+      appliedAt: serverTimestamp(),
+    });
+
     if (req.type === "assign_position" && req.position) {
       // 役職付与:排他の役職なら、前の担当者から外す
       const exclusive: Position[] = ["サークル長", "副サークル長", "会計担当"];
@@ -78,31 +102,42 @@ export function useRoleApprovals() {
         for (const m of await fetchAllMembers()) {
           const positions: Position[] = m.positions ?? [];
           if (m.id !== req.targetMemberId && positions.includes(req.position)) {
-            await updateDoc(doc(db, "members", m.id), {
+            batch.update(doc(db, "members", m.id), {
               positions: positions.filter((p) => p !== req.position),
               appliedRequestId: req.id,
             });
           }
         }
       }
-      // 対象者に役職を付与
+      // 対象者に役職を付与。すでに持っていれば、申請の記録(appliedRequestId)だけを書く
       const targetSnap = await getDoc(targetRef);
       const current: Position[] = (targetSnap.data() as { positions?: Position[] }).positions ?? [];
-      if (!current.includes(req.position)) {
-        await updateDoc(targetRef, {
-          positions: [...current, req.position],
-          appliedRequestId: req.id,
-        });
-      }
+      batch.update(targetRef, {
+        positions: current.includes(req.position) ? current : [...current, req.position],
+        appliedRequestId: req.id,
+      });
     } else if (req.type === "dismiss_officer") {
       // 幹部→一般に降格
-      await updateDoc(targetRef, {
+      batch.update(targetRef, {
         role: "一般メンバー",
         positions: [],
         appliedRequestId: req.id,
       });
+    } else {
+      // dismiss_leader / assign_vice_leader は今のUIでは発議していない
+      throw new Error(`反映できない種類の申請です: ${req.type}`);
     }
-    // dismiss_leader / assign_vice_leader は今回のUIでは発議していないため省略
+
+    await batch.commit();
+  };
+
+  /** 昇格から14日間は承認・却下できない旨の案内(v1.4.1) */
+  const waitMessage = (): string => {
+    const d = new Date(roleDecisionAvailableAt(currentMember));
+    return (
+      "幹部に昇格してから14日間は、役職の変更を承認・却下できません。" +
+      `${d.getMonth() + 1}月${d.getDate()}日から行えます。`
+    );
   };
 
   const approve = async (id: string) => {
@@ -110,37 +145,40 @@ export function useRoleApprovals() {
     const req = requests.find((r) => r.id === id);
     if (!req) return;
     if (req.approvals.includes(currentMember.id)) return;
+    if (!canJoinRoleDecisions(currentMember)) {
+      window.alert(waitMessage());
+      return;
+    }
 
     const newApprovals = [...req.approvals, currentMember.id];
     const completes = newApprovals.length >= req.requiredApprovals;
-    try {
-      // 承認(自分のIDを1つ足す)。必要数に達したらこの時点で approved にする
-      await updateDoc(doc(db, "roleChangeRequests", id), {
-        approvals: arrayUnion(currentMember.id),
-        status: completes ? "approved" : "pending",
-      });
-    } catch (e) {
-      console.error("承認に失敗しました", e);
-      window.alert("承認に失敗しました。");
-      return;
-    }
 
     if (!completes) {
-      setRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, approvals: newApprovals } : r))
-      );
+      try {
+        // 承認(自分のIDを1つ足す)。まだ必要数に届かないので pending のまま
+        await updateDoc(doc(db, "roleChangeRequests", id), {
+          approvals: arrayUnion(currentMember.id),
+        });
+        setRequests((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, approvals: newApprovals } : r))
+        );
+      } catch (e) {
+        console.error("承認に失敗しました", e);
+        window.alert("承認に失敗しました。");
+      }
       return;
     }
 
     try {
-      await executeChange(req);
+      await approveAndApply(req, currentMember.id);
     } catch (e) {
-      // 申請は承認済みになっているので、反映だけをやり直せば済む
-      console.error("役職変更の反映に失敗しました", e);
+      // バッチなので、失敗したときは承認も残っていない。やり直せば済む
+      console.error("承認と反映に失敗しました", e);
       window.alert(
-        "承認は完了しましたが、役職の反映に失敗しました。\n\n" +
-          "時間をおいて、名簿から対象者の役職を確認してください。"
+        "承認に失敗しました。役職は変わっていません。\n\n" +
+          "対象者の役職がすでに変わっている場合があります。名簿で確認してから、もう一度お試しください。"
       );
+      return;
     }
 
     // 申請者に結果を通知
@@ -155,11 +193,21 @@ export function useRoleApprovals() {
   };
 
   const reject = async (id: string) => {
+    if (!currentMember) return;
     const req = requests.find((r) => r.id === id);
+    // v1.4.1: 申請の対象者は却下できない(解任される本人が止められないように)
+    if (req && req.targetMemberId === currentMember.id) return;
+    if (!canJoinRoleDecisions(currentMember)) {
+      window.alert(waitMessage());
+      return;
+    }
     const ok = window.confirm("この申請を却下します。よろしいですか?");
     if (!ok) return;
     try {
-      await updateDoc(doc(db, "roleChangeRequests", id), { status: "rejected" });
+      await updateDoc(doc(db, "roleChangeRequests", id), {
+        status: "rejected",
+        rejectedBy: currentMember.id,
+      });
       // 申請者に結果を通知
       if (req) {
         await createNotification(
@@ -172,6 +220,7 @@ export function useRoleApprovals() {
       setRequests((prev) => prev.filter((r) => r.id !== id));
     } catch (e) {
       console.error("却下に失敗しました", e);
+      window.alert("却下に失敗しました。");
     }
   };
 
@@ -181,5 +230,12 @@ export function useRoleApprovals() {
   const isProposer = (r: RoleRequestView) =>
     currentMember ? r.proposedBy === currentMember.id : false;
 
-  return { requests, loading, approve, reject, hasApproved, isProposer } as const;
-}
+  /** 申請の対象者か。対象者には「却下」を出さない(v1.4.1) */
+  const isTarget = (r: RoleRequestView) =>
+    currentMember ? r.targetMemberId === currentMember.id : false;
+
+  /** 昇格から14日間で、承認・却下に加われない間の案内。加われるなら null */
+  const waitNote = canJoinRoleDecisions(currentMember) ? null : waitMessage();
+
+  return { requests, loading, approve, reject, hasApproved, isProposer, isTarget, waitNote } as const;
+}

@@ -408,6 +408,7 @@ export default function PostDetailScreen() {
             onChange={(e) => setCommentText(e.target.value)}
             onFocus={() => setShowStamps(false)}
             rows={2}
+            maxLength={1000}
           />
           <button
             className="post-detail-comment-send"

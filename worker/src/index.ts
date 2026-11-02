@@ -13,6 +13,10 @@
  *   POST /images/sign         画像の署名付きURLを発行する(在籍者か、メール確認済みの人)
  *   POST /images/delete       画像を消す(幹部のみ)
  *   GET  /images/file         画像の本体を返す(署名で保護。IDトークンは使わない)
+ *   POST /admin/backup/latest いちばん新しい定期バックアップを返す(幹部のみ。v1.4.1)
+ *
+ * 定期実行(Cron。v1.4.1)
+ *   週に1回、主要なコレクションを KV にバックアップする(backup.ts)
  *
  * 認証は /images/file を除き Firebase ID トークン。
  * 権限判定は Firestore の Member(status / role)を参照し、メールアドレスは使わない。
@@ -21,7 +25,14 @@
  */
 
 import { verifyIdToken, extractBearerToken } from "./auth";
-import { fetchMyMember, isActiveMember, isOfficer, type MemberInfo } from "./firestore";
+import {
+  fetchDocAsCaller,
+  fetchMyMember,
+  isActiveMember,
+  isOfficer,
+  type MemberInfo,
+} from "./firestore";
+import { getLatestBackup, runBackup } from "./backup";
 import { composeTeamsText, SENT_MARK_TTL, TEAMS_NOTIFY_TYPES, type TeamsNotifyType } from "./teams";
 import { parseServiceAccount, getAccessToken } from "./google";
 import {
@@ -48,6 +59,38 @@ export interface Env {
   TEAMS_WEBHOOK_URL: string;
   FIREBASE_SERVICE_ACCOUNT: string;
   IMAGE_SIGNING_KEY: string;
+  /**
+   * 定期バックアップ用のサービスアカウント(v1.4.1。任意)。
+   * 「Cloud Datastore 閲覧者」だけを付けたものにすること。未設定ならバックアップしない
+   */
+  BACKUP_SERVICE_ACCOUNT?: string;
+
+  // wrangler.toml の ratelimits(v1.4.1)。未設定なら回数の制限はかけない
+  TEAMS_RATE_LIMITER?: RateLimiter;
+  UPLOAD_RATE_LIMITER?: RateLimiter;
+}
+
+/** Cloudflare のレート制限のバインディング(使う部分だけ) */
+interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+/**
+ * 呼び出した人ごとの回数の制限(v1.4.1)。
+ * Teams への通知と画像のアップロードは、KV の書き込み(無料枠で1日1,000回)を使う。
+ * 部員1人が呼び続けて、その日の通知やアップロードを止めてしまわないようにする。
+ * バインディングが無い(古い wrangler.toml の)ときは制限しない
+ */
+async function withinRateLimit(limiter: RateLimiter | undefined, key: string): Promise<boolean> {
+  if (!limiter) return true;
+  try {
+    const { success } = await limiter.limit({ key });
+    return success;
+  } catch (e) {
+    // 制限の仕組みが落ちていても、本来の機能は止めない
+    console.error("回数の制限の確認に失敗しました", e);
+    return true;
+  }
 }
 
 // Identity Toolkit の管理操作に必要なスコープ
@@ -80,7 +123,7 @@ function corsHeaders(request: Request, env: Env): Record<string, string> {
   const allowed = allowedOrigins(env);
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Firebase-AppCheck",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -107,6 +150,8 @@ function json(body: unknown, status: number, request: Request, env: Env): Respon
 interface Caller {
   uid: string;
   idToken: string;
+  /** App Check のトークン(v1.4.1。アプリが送ってきたときだけ)。Firestore にそのまま渡す */
+  appCheckToken: string | null;
   member: MemberInfo | null;
   email: string | null;
   emailVerified: boolean;
@@ -119,10 +164,12 @@ async function authenticate(request: Request, env: Env): Promise<Caller | null> 
   const verified = await verifyIdToken(idToken, env.FIREBASE_PROJECT_ID);
   if (!verified) return null;
 
-  const member = await fetchMyMember(idToken, verified.uid, env.FIREBASE_PROJECT_ID);
+  const appCheckToken = request.headers.get("X-Firebase-AppCheck");
+  const member = await fetchMyMember(idToken, verified.uid, env.FIREBASE_PROJECT_ID, appCheckToken);
   return {
     uid: verified.uid,
     idToken,
+    appCheckToken,
     member,
     email: verified.email,
     emailVerified: verified.emailVerified,
@@ -194,6 +241,11 @@ async function handleNotifyTeams(
     return json({ error: "invalid_target" }, 400, request, env);
   }
 
+  // 1人あたりの回数の制限(v1.4.1)
+  if (!(await withinRateLimit(env.TEAMS_RATE_LIMITER, `teams:${caller.uid}`))) {
+    return json({ error: "rate_limited" }, 429, request, env);
+  }
+
   // 同じ対象への通知は1回だけ
   const sentKey = `teams-sent:${type}:${id}`;
   if (env.IMAGES && (await env.IMAGES.get(sentKey)) !== null) {
@@ -202,6 +254,7 @@ async function handleNotifyTeams(
 
   const composed = await composeTeamsText(type, id, {
     idToken: caller.idToken,
+    appCheckToken: caller.appCheckToken,
     projectId: env.FIREBASE_PROJECT_ID,
     appOrigin: (env.APP_ORIGIN || "").replace(/\/$/, ""),
     caller: { uid: caller.uid, member: caller.member },
@@ -267,6 +320,33 @@ async function handleDisableUser(
   // 無効化も復帰も幹部のみ。自分自身は対象にできない(締め出し事故を防ぐ)
   if (!isOfficer(caller.member) || isSelf) {
     return json({ error: "forbidden" }, 403, request, env);
+  }
+
+  // v1.4.1: 対象者の今の状態を確かめる。
+  // 以前は幹部1人で、在籍中の部員や他の幹部のログインを黙って止められた。
+  //  - 幹部は対象にできない(幹部を外すときは、先に3名の承認で降格する)
+  //  - 無効化は、名簿で除籍(expelled)になっている人だけ
+  //  - 有効化(復帰)は、名簿で在籍中(active)に戻っている人だけ
+  // 名簿は呼び出した幹部の ID トークンで読む(ルールがそのまま効く)
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)) {
+    return json({ error: "invalid_target" }, 400, request, env);
+  }
+  const target = await fetchDocAsCaller(
+    caller.idToken,
+    env.FIREBASE_PROJECT_ID,
+    "members",
+    targetUid,
+    caller.appCheckToken
+  );
+  if (!target) {
+    return json({ error: "target_not_found" }, 404, request, env);
+  }
+  if (target.role === "幹部") {
+    return json({ error: "target_is_officer" }, 403, request, env);
+  }
+  const expectedStatus = disabled ? "expelled" : "active";
+  if (target.status !== expectedStatus) {
+    return json({ error: "target_status_mismatch" }, 409, request, env);
   }
 
   let accessToken: string;
@@ -343,6 +423,9 @@ async function handleImageUpload(
   }
   if (!env.IMAGES || !env.IMAGE_SIGNING_KEY) {
     return json({ error: "images_not_configured" }, 500, request, env);
+  }
+  if (!(await withinRateLimit(env.UPLOAD_RATE_LIMITER, `upload:${caller.uid}`))) {
+    return json({ error: "rate_limited" }, 429, request, env);
   }
 
   let body: UploadBody;
@@ -467,6 +550,20 @@ async function handleImageDelete(
   }
 
   await deleteImage(env.IMAGES, imageId);
+
+  // v1.4.1: 配信用のキャッシュも消す。消さないと、署名付きURLを持っている人には
+  // 最大6時間、消したはずの写真が見え続けた。
+  // Cache API はデータセンターごとなので、ここで消せるのはこの Worker が動いた場所の分だけ。
+  // ほかの場所の分は、URL の署名の期限(6時間)で読めなくなる
+  const cacheKey = new Request(
+    `${new URL(request.url).origin}/images/file?id=${encodeURIComponent(imageId)}`
+  );
+  try {
+    await caches.default.delete(cacheKey);
+  } catch (e) {
+    console.error("画像のキャッシュの削除に失敗しました", imageId, e);
+  }
+
   return json({ ok: true, fileId: imageId }, 200, request, env);
 }
 
@@ -523,6 +620,36 @@ async function handleImageFile(
 }
 
 // ---------------------------------------------------------------------------
+// POST /admin/backup/latest   … いちばん新しい定期バックアップ(幹部のみ。v1.4.1)
+// ---------------------------------------------------------------------------
+
+async function handleLatestBackup(
+  request: Request,
+  env: Env,
+  caller: Caller
+): Promise<Response> {
+  if (!isOfficer(caller.member)) {
+    return json({ error: "forbidden" }, 403, request, env);
+  }
+  if (!env.IMAGES) {
+    return json({ error: "backup_not_configured" }, 500, request, env);
+  }
+  const latest = await getLatestBackup(env.IMAGES);
+  if (!latest) {
+    return json({ error: "no_backup" }, 404, request, env);
+  }
+  return new Response(latest.body, {
+    status: 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="bondy-${latest.key.replace(/[^0-9A-Za-z-]/g, "")}.json"`,
+      "cache-control": "no-store",
+      ...corsHeaders(request, env),
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // エントリポイント
 // ---------------------------------------------------------------------------
 
@@ -575,6 +702,8 @@ export default {
           return await handleImageSign(request, env, caller);
         case "/images/delete":
           return await handleImageDelete(request, env, caller);
+        case "/admin/backup/latest":
+          return await handleLatestBackup(request, env, caller);
         default:
           return json({ error: "not_found" }, 404, request, env);
       }
@@ -582,5 +711,18 @@ export default {
       console.error("処理中に想定外のエラーが発生しました", url.pathname, e);
       return json({ error: "internal_error" }, 500, request, env);
     }
+  },
+
+  /** 定期実行(wrangler.toml の [triggers])。週に1回のバックアップ(v1.4.1) */
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.BACKUP_SERVICE_ACCOUNT || !env.IMAGES) {
+      console.info("BACKUP_SERVICE_ACCOUNT が未設定のため、バックアップを取りませんでした");
+      return;
+    }
+    ctx.waitUntil(
+      runBackup(env.IMAGES, env.FIREBASE_PROJECT_ID, env.BACKUP_SERVICE_ACCOUNT)
+        .then((key) => console.info("バックアップを取りました", key))
+        .catch((e) => console.error("バックアップに失敗しました", e))
+    );
   },
 };

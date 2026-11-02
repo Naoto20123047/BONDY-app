@@ -104,8 +104,9 @@ export default function AuthActionScreen() {
   }, []);
 
   const submitPassword = async () => {
-    if (newPassword.length < 6) {
-      setMessage("パスワードは6文字以上で設定してください。");
+    // v1.4.1: 新規登録と同じく8文字以上にした
+    if (newPassword.length < 8) {
+      setMessage("パスワードは8文字以上で設定してください。");
       return;
     }
     setSaving(true);
@@ -147,7 +148,7 @@ export default function AuthActionScreen() {
               <input
                 className="login-input"
                 type="password"
-                placeholder="6文字以上"
+                placeholder="8文字以上"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />

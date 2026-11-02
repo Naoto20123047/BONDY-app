@@ -4,6 +4,8 @@ import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/AuthContext";
 import { hasOfficerRole } from "../../lib/roles";
 import { currentFiscalYear } from "../../lib/grade";
+import { isFormClosed } from "../../lib/formLabel";
+import { fetchPendingMembers } from "../../lib/members";
 import type { Band, FormDef, FormResponse } from "../../Types/types";
 
 interface FormSummary {
@@ -29,8 +31,6 @@ export function useHome() {
         return;
       }
       try {
-        const now = new Date();
-
         // 今年度の自分の会費状況(dues コレクションを正とする)
         const cy = currentFiscalYear();
         const duesSnap = await getDocs(
@@ -58,7 +58,8 @@ export function useHome() {
         );
 
         const pending = forms
-          .filter((f) => new Date(f.deadline) >= now && !answeredFormIds.has(f.id))
+          // 締切は締切日の終わり(日本時間)。以前は締切日の朝9時で締め切られていた
+          .filter((f) => !isFormClosed(f) && !answeredFormIds.has(f.id))
           .map((f) => ({ id: f.id, title: f.title, deadline: f.deadline }));
         setPendingForms(pending);
 
@@ -71,7 +72,8 @@ export function useHome() {
           );
         setBandCount(myBands.length);
 
-        // 承認待ち件数(幹部のみ:ロール申請pending + バンド申請中/解散申請中)
+        // 承認待ち件数(幹部のみ:ロール申請pending + バンド申請中/解散申請中 + 新規登録の確認待ち)
+        // v1.4.1: 教員・OBの登録は、本人から幹部に通知を送らず、ここで数えて知らせる
         if (isOfficer) {
           const roleSnap = await getDocs(
             query(collection(db, "roleChangeRequests"), where("status", "==", "pending"))
@@ -80,7 +82,8 @@ export function useHome() {
             const s = (d.data() as { status: string }).status;
             return s === "申請中" || s === "解散申請中";
           }).length;
-          setPendingApprovals(roleSnap.size + bandPending);
+          const memberPending = (await fetchPendingMembers()).length;
+          setPendingApprovals(roleSnap.size + bandPending + memberPending);
         }
       } catch (e) {
         console.error("ホーム情報の取得に失敗しました", e);
@@ -100,4 +103,4 @@ export function useHome() {
     isOfficer,
     loading,
   } as const;
-}
+}

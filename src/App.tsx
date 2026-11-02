@@ -52,6 +52,7 @@ import LiveSubmitDoneScreen from "./screens/Live/liveSubmitDoneScreen";
 import LiveStatusScreen from "./screens/Live/liveStatusScreen";
 import LiveDocumentsScreen from "./screens/Live/liveDocumentsScreen";
 import { isPendingApproval } from "./lib/memberCategory";
+import ErrorBoundary from "./screens/Layout/ErrorBoundary";
 
 
 // 認証状態に応じて表示を切り替える中身
@@ -133,70 +134,77 @@ return (
 
 // 通常のアプリ画面(レイアウトの中に入るもの)
 function AppRoutes({ isOfficer }: { isOfficer: boolean }) {
+  const location = useLocation();
   return (
     <Layout isOfficer={isOfficer}>
-      <Routes>
-        <Route path="/home" element={<HomeScreen />} />
-        <Route path="/roster" element={<RosterScreen />} />
-        <Route path="/roster/:id" element={<MemberDetailScreen isOfficer={isOfficer} />} />
-        <Route path="/mypage" element={<MyPageScreen />} />
-        <Route path="/mypage/edit" element={<EditProfileScreen />} />
-        <Route path="/forms" element={<FormsScreen isOfficer={isOfficer} />} />
-        <Route path="/forms/new" element={<CreateFormScreen />} />
-        <Route path="/forms/:id" element={<FormAnswerScreen />} />
-        <Route path="/forms/:id/results" element={<FormResultsScreen />} />
-        <Route path="/bands" element={<BandsScreen />} />
-        <Route path="/bands/new" element={<CreateBandScreen />} />
-        <Route path="/bands/:id" element={<BandDetailScreen />} />
-        {/* アーカイブ。/new と /:id/edit は幹部だけが導線を持つが、
-            権限そのものは Firestore ルール側で担保している */}
-        <Route path="/archive" element={<ArchiveScreen />} />
-        <Route path="/archive/new" element={<ArchiveEditScreen />} />
-        <Route path="/archive/:id" element={<ArchiveEventDetailScreen />} />
-        <Route path="/archive/:id/edit" element={<ArchiveEditScreen />} />
-        {/* ライブ準備(v1.4.0)。作成・編集・順番・提出状況は幹部のみ
-            (画面でも確かめているが、権限そのものは Firestore ルールで担保している) */}
-        <Route path="/live" element={<LiveListScreen />} />
-        <Route path="/live/new" element={<LiveEditScreen />} />
-        <Route path="/live/:id" element={<LiveDetailScreen />} />
-        <Route path="/live/:id/edit" element={<LiveEditScreen />} />
-        <Route path="/live/:id/apply" element={<LiveApplyScreen />} />
-        <Route path="/live/:id/lineup" element={<LiveLineupScreen />} />
-        <Route path="/live/:id/setlist/:bandId" element={<SetlistScreen />} />
-        <Route path="/live/:id/stage/:bandId" element={<StagePlanScreen />} />
-        <Route path="/live/:id/done/:bandId" element={<LiveSubmitDoneScreen />} />
-        <Route path="/live/:id/status" element={<LiveStatusScreen />} />
-        <Route path="/live/:id/documents" element={<LiveDocumentsScreen />} />
-        <Route path="/chat" element={<ChatScreen />} />
-        <Route path="/board" element={<BoardScreen />} />
-        <Route path="/board/new" element={<CreatePostScreen />} />
-        <Route path="/board/:id" element={<PostDetailScreen />} />
-        <Route path="/admin" element={<AdminScreen />} />
-        <Route path="/admin/approvals/roles" element={<RoleApprovalsScreen />} />
-        <Route path="/admin/approvals/bands" element={<BandApprovalsScreen />} />
-        <Route path="/admin/approvals/members" element={<MemberApprovalsScreen />} />
-        <Route path="/admin/dues" element={<DuesScreen />} />
-        <Route path="/admin/history" element={<UserHistoryScreen />} />
-        <Route path="/admin/intro" element={<IntroEditScreen />} />
-        <Route path="/todo" element={<TodoScreen />} />
-        <Route path="/equipment" element={<EquipmentScreen  />} />
-        <Route path="/equipment/manage" element={<EquipmentManageScreen />} />
-        <Route path="/equipment/requests" element={<EquipmentRequestsScreen />} />
-        <Route path="/equipment/:id" element={<EquipmentDetailScreen />} />
-        <Route path="*" element={<Navigate to="/home" replace />} />
-      </Routes>
+      {/* 1つの画面で表示の例外が出ても、アプリ全体を止めない(v1.4.1)。
+          別の画面に移ればエラーの表示は解ける */}
+      <ErrorBoundary resetKey={location.pathname}>
+        <Routes>
+          <Route path="/home" element={<HomeScreen />} />
+          <Route path="/roster" element={<RosterScreen />} />
+          <Route path="/roster/:id" element={<MemberDetailScreen isOfficer={isOfficer} />} />
+          <Route path="/mypage" element={<MyPageScreen />} />
+          <Route path="/mypage/edit" element={<EditProfileScreen />} />
+          <Route path="/forms" element={<FormsScreen isOfficer={isOfficer} />} />
+          <Route path="/forms/new" element={<CreateFormScreen />} />
+          <Route path="/forms/:id" element={<FormAnswerScreen />} />
+          <Route path="/forms/:id/results" element={<FormResultsScreen />} />
+          <Route path="/bands" element={<BandsScreen />} />
+          <Route path="/bands/new" element={<CreateBandScreen />} />
+          <Route path="/bands/:id" element={<BandDetailScreen />} />
+          {/* アーカイブ。/new と /:id/edit は幹部だけが導線を持つが、
+              権限そのものは Firestore ルール側で担保している */}
+          <Route path="/archive" element={<ArchiveScreen />} />
+          <Route path="/archive/new" element={<ArchiveEditScreen />} />
+          <Route path="/archive/:id" element={<ArchiveEventDetailScreen />} />
+          <Route path="/archive/:id/edit" element={<ArchiveEditScreen />} />
+          {/* ライブ準備(v1.4.0)。作成・編集・順番・提出状況は幹部のみ
+              (画面でも確かめているが、権限そのものは Firestore ルールで担保している) */}
+          <Route path="/live" element={<LiveListScreen />} />
+          <Route path="/live/new" element={<LiveEditScreen />} />
+          <Route path="/live/:id" element={<LiveDetailScreen />} />
+          <Route path="/live/:id/edit" element={<LiveEditScreen />} />
+          <Route path="/live/:id/apply" element={<LiveApplyScreen />} />
+          <Route path="/live/:id/lineup" element={<LiveLineupScreen />} />
+          <Route path="/live/:id/setlist/:bandId" element={<SetlistScreen />} />
+          <Route path="/live/:id/stage/:bandId" element={<StagePlanScreen />} />
+          <Route path="/live/:id/done/:bandId" element={<LiveSubmitDoneScreen />} />
+          <Route path="/live/:id/status" element={<LiveStatusScreen />} />
+          <Route path="/live/:id/documents" element={<LiveDocumentsScreen />} />
+          <Route path="/chat" element={<ChatScreen />} />
+          <Route path="/board" element={<BoardScreen />} />
+          <Route path="/board/new" element={<CreatePostScreen />} />
+          <Route path="/board/:id" element={<PostDetailScreen />} />
+          <Route path="/admin" element={<AdminScreen />} />
+          <Route path="/admin/approvals/roles" element={<RoleApprovalsScreen />} />
+          <Route path="/admin/approvals/bands" element={<BandApprovalsScreen />} />
+          <Route path="/admin/approvals/members" element={<MemberApprovalsScreen />} />
+          <Route path="/admin/dues" element={<DuesScreen />} />
+          <Route path="/admin/history" element={<UserHistoryScreen />} />
+          <Route path="/admin/intro" element={<IntroEditScreen />} />
+          <Route path="/todo" element={<TodoScreen />} />
+          <Route path="/equipment" element={<EquipmentScreen  />} />
+          <Route path="/equipment/manage" element={<EquipmentManageScreen />} />
+          <Route path="/equipment/requests" element={<EquipmentRequestsScreen />} />
+          <Route path="/equipment/:id" element={<EquipmentDetailScreen />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
+        </Routes>
+      </ErrorBoundary>
     </Layout>
   );
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
-export default App;
+export default App;

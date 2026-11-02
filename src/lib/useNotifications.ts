@@ -1,12 +1,31 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, query, where, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "./AuthContext";
 import type { AppNotification } from "../Types/types";
 import { checkAnonymousPostComments } from "./anon";
+import { asText } from "./sanitize";
 
 // 保持する既読通知の最大件数(これを超えた古い既読は削除)
 const MAX_READ_KEEP = 5;
+
+/**
+ * 一度に読む通知の上限(v1.4.1)。
+ * 以前は自分宛ての通知を毎回すべて読んでいたため、大量に送りつけられると
+ * 画面が重くなり、読み取り枠も消費した。
+ * targetMemberId と createdAt の複合インデックスを使う(firestore.indexes.json)
+ */
+const MAX_FETCH = 50;
 
 export function useNotifications() {
   const { member } = useAuth();
@@ -26,13 +45,23 @@ export function useNotifications() {
 
         const q = query(
           collection(db, "notifications"),
-          where("targetMemberId", "==", member.id)
+          where("targetMemberId", "==", member.id),
+          orderBy("createdAt", "desc"),
+          limit(MAX_FETCH)
         );
         const snap = await getDocs(q);
-        const list: AppNotification[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<AppNotification, "id">),
-        }));
+        const list: AppNotification[] = snap.docs.map((d) => {
+          const raw = d.data() as Omit<AppNotification, "id">;
+          // 型が想定と違う値で画面が止まらないよう、文字列にそろえる
+          return {
+            ...raw,
+            id: d.id,
+            message: asText(raw.message),
+            link: asText(raw.link) || "/home",
+            createdAt: asText(raw.createdAt),
+            createdBy: typeof raw.createdBy === "string" ? raw.createdBy : undefined,
+          };
+        });
         // 新しい順に並べる
         list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
         setNotifications(list);
@@ -99,4 +128,4 @@ export function useNotifications() {
   };
 
   return { notifications, unreadCount, loading, markAsRead, markAllAsRead } as const;
-}
+}
